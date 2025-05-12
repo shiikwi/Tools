@@ -431,8 +431,3 @@ FodyWeavers.xsd
 *.exe
 *.out
 *.app
-
-
-FontHook.h
-FontHook.cpp
-Management.h
