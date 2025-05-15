@@ -67,8 +67,7 @@ HFONT WINAPI HookedCreateFontW(
 	return TrueCreateFontW(cHeight, cWidth, cEscapement, cOrientation, cWeight, bItalic, bUnderline, bStrikeOut, NewCharSet, iOutPrecision, iClipPrecision, iQuality, iPitchAndFamily, NewFontName);
 }
 
-HFONT WINAPI HookedCreateFontIndirectA(CONST LOGFONTA* lplf)
-{
+HFONT WINAPI HookedCreateFontIndirectA(CONST LOGFONTA* lplf) {
 
 	WrapIsFirstCall("CreateFontIndirectA Hooked\n");
 
@@ -92,8 +91,7 @@ HFONT WINAPI HookedCreateFontIndirectA(CONST LOGFONTA* lplf)
 }
 
 
-HFONT WINAPI HookedCreateFontIndirectW(CONST LOGFONTW* lplf)
-{
+HFONT WINAPI HookedCreateFontIndirectW(CONST LOGFONTW* lplf) {
 
 	WrapIsFirstCall("CreateFontIndirectW Hooked\n");
 
@@ -108,4 +106,71 @@ HFONT WINAPI HookedCreateFontIndirectW(CONST LOGFONTW* lplf)
 	printf("CharSet: %u -> %u\n", lplf->lfCharSet, lfModified.lfCharSet);
 	wprintf(L"FaceName: %s -> %s\n", lplf->lfFaceName, lfModified.lfFaceName);
 	return TrueCreateFontIndirectW(&lfModified);
+}
+
+
+HFONT WINAPI HookedCreateFontIndirectExA(CONST ENUMLOGFONTEXDVA* lplf) {
+
+	WrapIsFirstCall("CreateFontIndirectExA Hooked\n");
+
+	ENUMLOGFONTEXDVA lfModified = *lplf;
+
+	lfModified.elfEnumLogfontEx.elfLogFont.lfCharSet= g_iCharSet;
+
+	if (g_pszFaceName && *g_pszFaceName) {
+		WideCharToMultiByte(
+			CP_ACP, 0,
+			g_pszFaceName, -1,
+			lfModified.elfEnumLogfontEx.elfLogFont.lfFaceName, LF_FACESIZE,
+			nullptr, nullptr
+		);
+	}
+
+
+	printf("CharSet: %u -> %u\n", lplf->elfEnumLogfontEx.elfLogFont.lfCharSet, lfModified.elfEnumLogfontEx.elfLogFont.lfCharSet);
+	printf("FaceName: %s -> %s\n", lplf->elfEnumLogfontEx.elfLogFont.lfFaceName, lfModified.elfEnumLogfontEx.elfLogFont.lfFaceName);
+
+	return TrueCreateFontIndirectExA(&lfModified);
+}
+
+HFONT WINAPI HookedCreateFontIndirectExW(CONST ENUMLOGFONTEXDVW* lplf) {
+	WrapIsFirstCall("CreateFontIndirectExW Hooked\n");
+
+	ENUMLOGFONTEXDVW lfModified = *lplf;
+	lfModified.elfEnumLogfontEx.elfLogFont.lfCharSet = g_iCharSet;
+
+	if (g_pszFaceName && *g_pszFaceName) {
+		wcscpy_s(lfModified.elfEnumLogfontEx.elfLogFont.lfFaceName, LF_FACESIZE, g_pszFaceName);
+	}
+
+
+	printf("CharSet: %u -> %u\n", lplf->elfEnumLogfontEx.elfLogFont.lfCharSet, lfModified.elfEnumLogfontEx.elfLogFont.lfCharSet);
+	wprintf(L"FaceName: %s -> %s\n", lplf->elfEnumLogfontEx.elfLogFont.lfFaceName, lfModified.elfEnumLogfontEx.elfLogFont.lfFaceName);
+
+	return TrueCreateFontIndirectExW(&lfModified);
+}
+
+int WINAPI HookedEnumFontFamiliesExA(
+	HDC hdc,
+	LPLOGFONTA lpLogfont,
+	FONTENUMPROCA lpProc,
+	LPARAM lParam,
+	DWORD dwFlags) {
+	WrapIsFirstCall("EnumFontFamiliesExA Hooked\n");
+
+	LPLOGFONTA lfModified = lpLogfont;
+	lfModified->lfCharSet = g_iCharSet;
+	if (g_pszFaceName && *g_pszFaceName) {
+		WideCharToMultiByte(
+			CP_ACP, 0,
+			g_pszFaceName, -1,
+			lfModified->lfFaceName, LF_FACESIZE,
+			nullptr, nullptr
+		);
+	}
+
+	printf("CharSet: %u -> %u\n", lpLogfont->lfCharSet, lfModified->lfCharSet);
+	printf("FaceName: %s -> %s\n", lpLogfont->lfFaceName, lfModified->lfFaceName);
+
+	return TrueEnumFontFamiliesExA(hdc, lfModified, lpProc, lParam, dwFlags);
 }
