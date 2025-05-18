@@ -174,3 +174,56 @@ int WINAPI HookedEnumFontFamiliesExA(
 
 	return TrueEnumFontFamiliesExA(hdc, lfModified, lpProc, lParam, dwFlags);
 }
+
+int WINAPI HookedEnumFontFamiliesExW(
+	HDC hdc,
+	LPLOGFONTW lpLogfont,
+	FONTENUMPROCW lpProc,
+	LPARAM lParam,
+	DWORD dwFlags) {
+	WrapIsFirstCall("EnumFontFamiliesExW Hooked\n");
+	LPLOGFONTW lfModified = lpLogfont;
+	lfModified->lfCharSet = g_iCharSet;
+	if (g_pszFaceName && *g_pszFaceName) {
+		wcscpy_s(lfModified->lfFaceName, LF_FACESIZE, g_pszFaceName);
+	}
+	printf("CharSet: %u -> %u\n", lpLogfont->lfCharSet, lfModified->lfCharSet);
+	wprintf(L"FaceName: %s -> %s\n", lpLogfont->lfFaceName, lfModified->lfFaceName);
+	return TrueEnumFontFamiliesExW(hdc, lfModified, lpProc, lParam, dwFlags);
+}
+
+void LoadFont(const wchar_t* FontPath) {
+
+	WrapIsFirstCall("AddFontResourceExAW Called\n");
+
+
+	std::string AnsiPath = [&]() {
+		int len = WideCharToMultiByte(CP_ACP, 0, FontPath, -1, NULL, 0, NULL, NULL);
+		std::string buf(len, 0);
+		WideCharToMultiByte(CP_ACP, 0, FontPath, -1, buf.data(), len, nullptr, nullptr);
+		return buf;
+		}();
+
+	int AFontRet = AddFontResourceExA(AnsiPath.c_str(), FR_NOT_ENUM, 0);
+	int WFontRet = AddFontResourceExW(FontPath, FR_NOT_ENUM, 0);
+
+	if (AFontRet && WFontRet) {
+		wprintf(L"%s Loaded Successfully", FontPath);
+	}
+	else {
+		wprintf(L"%s Loaded Unsuccessfully", FontPath);
+	}
+}
+
+void UnloadFont(const wchar_t* FontPath) {
+
+	std::string AnsiPath = [&]() {
+		int len = WideCharToMultiByte(CP_ACP, 0, FontPath, -1, NULL, 0, NULL, NULL);
+		std::string buf(len, 0);
+		WideCharToMultiByte(CP_ACP, 0, FontPath, -1, buf.data(), len, nullptr, nullptr);
+		return buf;
+		}();
+
+	RemoveFontResourceExA(AnsiPath.c_str(), FR_NOT_ENUM, 0);
+	RemoveFontResourceExW(FontPath, FR_NOT_ENUM, 0);
+}

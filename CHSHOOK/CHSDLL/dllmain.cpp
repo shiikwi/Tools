@@ -27,6 +27,13 @@ bool InitializeHooks()
 	DetourAttach(&(PVOID&)TrueDefWindowProcW, HookedDefWindowProcW);
     DetourAttach(&(PVOID&)TrueCreateFontA, HookedCreateFontA);
     DetourAttach(&(PVOID&)TrueCreateFontW, HookedCreateFontW);
+	DetourAttach(&(PVOID&)TrueCreateFontIndirectA, HookedCreateFontIndirectA);
+    DetourAttach(&(PVOID&)TrueCreateFontIndirectW, HookedCreateFontIndirectW);
+	DetourAttach(&(PVOID&)TrueCreateFontIndirectExA, HookedCreateFontIndirectExA);
+	DetourAttach(&(PVOID&)TrueCreateFontIndirectExW, HookedCreateFontIndirectExW);
+	DetourAttach(&(PVOID&)TrueEnumFontFamiliesExA, HookedEnumFontFamiliesExA);
+	DetourAttach(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
+	LoadFont(MyFont.c_str());
 
     LONG status = DetourTransactionCommit();
     if (status != NO_ERROR) {
@@ -48,6 +55,13 @@ bool FreeHooks()
 	DetourDetach(&(PVOID&)TrueDefWindowProcW, HookedDefWindowProcW);
 	DetourDetach(&(PVOID&)TrueCreateFontA, HookedCreateFontA);
 	DetourDetach(&(PVOID&)TrueCreateFontW, HookedCreateFontW);
+	DetourDetach(&(PVOID&)TrueCreateFontIndirectA, HookedCreateFontIndirectA);
+	DetourDetach(&(PVOID&)TrueCreateFontIndirectW, HookedCreateFontIndirectW);
+	DetourDetach(&(PVOID&)TrueCreateFontIndirectExA, HookedCreateFontIndirectExA);
+	DetourDetach(&(PVOID&)TrueCreateFontIndirectExW, HookedCreateFontIndirectExW);
+	DetourDetach(&(PVOID&)TrueEnumFontFamiliesExA, HookedEnumFontFamiliesExA);
+	DetourDetach(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
+	UnloadFont(MyFont.c_str());
     return true;
 }
 

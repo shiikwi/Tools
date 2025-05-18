@@ -3,8 +3,6 @@
 
 namespace WindowHookConfig {
 
-	inline const wchar_t* NEW_TITLE = L"HOOK ´°¿Ú²âÊÔ";
-
 	inline decltype(&CreateWindowExA) TrueCreateWindowExA = CreateWindowExA;
 	inline decltype(&CreateWindowExW) TrueCreateWindowExW = CreateWindowExW;
 	inline decltype(&DefWindowProcA) TrueDefWindowProcA = DefWindowProcA;

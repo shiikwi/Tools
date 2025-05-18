@@ -2,8 +2,6 @@
 #include "Management.h"
 
 namespace FontHookConfig {
-	inline const DWORD g_iCharSet = 134; //SJIS 128
-	inline const LPCWSTR g_pszFaceName = L"simhei";  //nullptr
 
 	inline decltype(&CreateFontA) TrueCreateFontA = CreateFontA;
 	inline decltype(&CreateFontW) TrueCreateFontW = CreateFontW;
@@ -86,3 +84,7 @@ int WINAPI HookedEnumFontFamiliesExW(
 	LPARAM lParam,
 	DWORD dwFlags
 );
+
+void LoadFont(const wchar_t* FontPath);
+
+void UnloadFont(const wchar_t* FontPath);
