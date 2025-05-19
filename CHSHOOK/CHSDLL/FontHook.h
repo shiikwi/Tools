@@ -11,6 +11,8 @@ namespace FontHookConfig {
 	inline decltype(&CreateFontIndirectExW) TrueCreateFontIndirectExW = CreateFontIndirectExW;
 	inline decltype(&EnumFontFamiliesExA) TrueEnumFontFamiliesExA = EnumFontFamiliesExA;
 	inline decltype(&EnumFontFamiliesExW) TrueEnumFontFamiliesExW = EnumFontFamiliesExW;
+	inline decltype(&MultiByteToWideChar) TrueMultiByteToWideChar = MultiByteToWideChar;	
+	inline decltype(&WideCharToMultiByte) TrueWideCharToMultiByte = WideCharToMultiByte;
 
 }
 
@@ -83,6 +85,26 @@ int WINAPI HookedEnumFontFamiliesExW(
 	FONTENUMPROCW lpProc,
 	LPARAM lParam,
 	DWORD dwFlags
+);
+
+int WINAPI HookedMultiByteToWideChar(
+	UINT CodePage,
+	DWORD dwFlags,
+	LPCSTR lpMultiByteStr,
+	int cbMultiByte,
+	LPWSTR lpWideCharStr,
+	int cchWideChar
+);
+
+int WINAPI HookedWideCharToMultiByte(
+	UINT CodePage,
+	DWORD dwFlags,
+	LPCWSTR lpWideCharStr,
+	int cchWideChar,
+	LPSTR lpMultiByteStr,
+	int cbMultiByte,
+	LPCSTR lpDefaultChar,
+	LPBOOL lpUsedDefaultChar
 );
 
 void LoadFont(const wchar_t* FontPath);

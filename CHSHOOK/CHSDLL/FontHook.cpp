@@ -192,6 +192,45 @@ int WINAPI HookedEnumFontFamiliesExW(
 	return TrueEnumFontFamiliesExW(hdc, lfModified, lpProc, lParam, dwFlags);
 }
 
+int WINAPI HookedMultiByteToWideChar(
+	UINT CodePage,
+	DWORD dwFlags,
+	LPCSTR lpMultiByteStr,
+	int cbMultiByte,
+	LPWSTR lpWideCharStr,
+	int cchWideChar) {
+	WrapIsFirstCall("MultiByteToWideChar Hooked\n");
+	printf("OriCodePage: %u\n", CodePage);
+
+	if (CodePage == CP_ACP) {
+		CodePage = 932;
+	}
+	
+	printf("NewCodePage: %u\n", CodePage);
+	return TrueMultiByteToWideChar(CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar);
+}
+/*
+int WINAPI HookedWideCharToMultiByte(
+	UINT CodePage,
+	DWORD dwFlags,
+	LPCWSTR lpWideCharStr,
+	int cchWideChar,
+	LPSTR lpMultiByteStr,
+	int cbMultiByte,
+	LPCSTR lpDefaultChar,
+	LPBOOL lpUsedDefaultChar) {
+	WrapIsFirstCall("WideCharToMultiByte Hooked\n");
+	printf("OriCodePage: %u\n", CodePage);
+
+	if (CodePage == CP_ACP) {
+		CodePage = 936;
+	}
+
+	printf("NewCodePage: %u\n", CodePage);
+	return TrueWideCharToMultiByte(CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar);
+}
+*/
+
 void LoadFont(const wchar_t* FontPath) {
 
 	WrapIsFirstCall("AddFontResourceExAW Called\n");
