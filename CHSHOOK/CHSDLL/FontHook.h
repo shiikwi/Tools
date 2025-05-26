@@ -110,3 +110,5 @@ int WINAPI HookedWideCharToMultiByte(
 void LoadFont(const wchar_t* FontPath);
 
 void UnloadFont(const wchar_t* FontPath);
+
+void PatchRangeCheck();

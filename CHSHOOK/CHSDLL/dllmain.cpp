@@ -1,19 +1,11 @@
 ﻿#include "WindowHook.h"
 #include "FontHook.h"
+#include "Management.h"
 #pragma comment(lib, "detours.lib")
 using namespace WindowHookConfig;
 using namespace FontHookConfig;
 
-extern "C" __declspec(dllexport) void DummyExport(void) {}
-
-
-void AttachDebugConsole() {
-    AllocConsole();
-    FILE* fDummy;
-    freopen_s(&fDummy, "CONOUT$", "w", stdout);
-    freopen_s(&fDummy, "CONOUT$", "w", stderr);
-    SetConsoleTitleW(L"Hook Debug Console");
-}
+extern "C" __declspec(dllexport) void ShiKwi(void) {}
 
 
 bool InitializeHooks()
@@ -21,18 +13,20 @@ bool InitializeHooks()
     DetourRestoreAfterWith();
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
-	DetourAttach(&(PVOID&)TrueCreateWindowExA, HookedCreateWindowExA);
-	DetourAttach(&(PVOID&)TrueCreateWindowExW, HookedCreateWindowExW);
-	DetourAttach(&(PVOID&)TrueDefWindowProcA, HookedDefWindowProcA);
-	DetourAttach(&(PVOID&)TrueDefWindowProcW, HookedDefWindowProcW);
-    DetourAttach(&(PVOID&)TrueCreateFontA, HookedCreateFontA);
-    DetourAttach(&(PVOID&)TrueCreateFontW, HookedCreateFontW);
-	DetourAttach(&(PVOID&)TrueCreateFontIndirectA, HookedCreateFontIndirectA);
-    DetourAttach(&(PVOID&)TrueCreateFontIndirectW, HookedCreateFontIndirectW);
-	DetourAttach(&(PVOID&)TrueCreateFontIndirectExA, HookedCreateFontIndirectExA);
-	DetourAttach(&(PVOID&)TrueCreateFontIndirectExW, HookedCreateFontIndirectExW);
-	DetourAttach(&(PVOID&)TrueEnumFontFamiliesExA, HookedEnumFontFamiliesExA);
-	DetourAttach(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
+    DetourAttach_IF_Enable<IfTrueCreateWindowExA>(&(PVOID&)TrueCreateWindowExA, HookedCreateWindowExA);
+    DetourAttach_IF_Enable<IfTrueCreateWindowExW>(&(PVOID&)TrueCreateWindowExW, HookedCreateWindowExW);
+    DetourAttach_IF_Enable<IfTrueDefWindowProcA>(&(PVOID&)TrueDefWindowProcA, HookedDefWindowProcA);
+    DetourAttach_IF_Enable<IfTrueDefWindowProcW>(&(PVOID&)TrueDefWindowProcW, HookedDefWindowProcW);
+    DetourAttach_IF_Enable<IfTrueCreateFontA>(&(PVOID&)TrueCreateFontA, HookedCreateFontA);
+    DetourAttach_IF_Enable<IfTrueCreateFontW>(&(PVOID&)TrueCreateFontW, HookedCreateFontW);
+    DetourAttach_IF_Enable<IfTrueCreateFontIndirectA>(&(PVOID&)TrueCreateFontIndirectA, HookedCreateFontIndirectA);
+    DetourAttach_IF_Enable<IfTrueCreateFontIndirectW>(&(PVOID&)TrueCreateFontIndirectW, HookedCreateFontIndirectW);
+    DetourAttach_IF_Enable<IfTrueCreateFontIndirectExW>(&(PVOID&)TrueCreateFontIndirectExA, HookedCreateFontIndirectExA);
+    DetourAttach_IF_Enable<IfTrueCreateFontIndirectExW>(&(PVOID&)TrueCreateFontIndirectExW, HookedCreateFontIndirectExW);
+    DetourAttach_IF_Enable<IfTrueEnumFontFamiliesExA>(&(PVOID&)TrueEnumFontFamiliesExA, HookedEnumFontFamiliesExA);
+    DetourAttach_IF_Enable<IfTrueEnumFontFamiliesExW>(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
+    DetourAttach_IF_Enable<IfTrueMultiByteToWideChar>(&(PVOID&)TrueMultiByteToWideChar, HookedMultiByteToWideChar);
+    DetourAttach_IF_Enable<IfTrueWideCharToMultiByte>(&(PVOID&)TrueWideCharToMultiByte, HookedWideCharToMultiByte);
 	LoadFont(MyFont.c_str());
 
     LONG status = DetourTransactionCommit();
@@ -49,24 +43,23 @@ bool FreeHooks()
 {
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
-	DetourDetach(&(PVOID&)TrueCreateWindowExA, HookedCreateWindowExA);
-	DetourDetach(&(PVOID&)TrueCreateWindowExW, HookedCreateWindowExW);
-    DetourDetach(&(PVOID&)TrueDefWindowProcA, HookedDefWindowProcA);
-	DetourDetach(&(PVOID&)TrueDefWindowProcW, HookedDefWindowProcW);
-	DetourDetach(&(PVOID&)TrueCreateFontA, HookedCreateFontA);
-	DetourDetach(&(PVOID&)TrueCreateFontW, HookedCreateFontW);
-	DetourDetach(&(PVOID&)TrueCreateFontIndirectA, HookedCreateFontIndirectA);
-	DetourDetach(&(PVOID&)TrueCreateFontIndirectW, HookedCreateFontIndirectW);
-	DetourDetach(&(PVOID&)TrueCreateFontIndirectExA, HookedCreateFontIndirectExA);
-	DetourDetach(&(PVOID&)TrueCreateFontIndirectExW, HookedCreateFontIndirectExW);
-	DetourDetach(&(PVOID&)TrueEnumFontFamiliesExA, HookedEnumFontFamiliesExA);
-	DetourDetach(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
+    DetourDetach_IF_Enable<IfTrueCreateWindowExA>(&(PVOID&)TrueCreateWindowExA, HookedCreateWindowExA);
+    DetourDetach_IF_Enable<IfTrueCreateWindowExW>(&(PVOID&)TrueCreateWindowExW, HookedCreateWindowExW);
+    DetourDetach_IF_Enable<IfTrueDefWindowProcA>(&(PVOID&)TrueDefWindowProcA, HookedDefWindowProcA);
+    DetourDetach_IF_Enable<IfTrueDefWindowProcW>(&(PVOID&)TrueDefWindowProcW, HookedDefWindowProcW);
+    DetourDetach_IF_Enable<IfTrueCreateFontA>(&(PVOID&)TrueCreateFontA, HookedCreateFontA);
+    DetourDetach_IF_Enable<IfTrueCreateFontW>(&(PVOID&)TrueCreateFontW, HookedCreateFontW);
+    DetourDetach_IF_Enable<IfTrueCreateFontIndirectA>(&(PVOID&)TrueCreateFontIndirectA, HookedCreateFontIndirectA);
+    DetourDetach_IF_Enable<IfTrueCreateFontIndirectW>(&(PVOID&)TrueCreateFontIndirectW, HookedCreateFontIndirectW);
+    DetourDetach_IF_Enable<IfTrueCreateFontIndirectExW>(&(PVOID&)TrueCreateFontIndirectExA, HookedCreateFontIndirectExA);
+    DetourDetach_IF_Enable<IfTrueCreateFontIndirectExW>(&(PVOID&)TrueCreateFontIndirectExW, HookedCreateFontIndirectExW);
+    DetourDetach_IF_Enable<IfTrueEnumFontFamiliesExA>(&(PVOID&)TrueEnumFontFamiliesExA, HookedEnumFontFamiliesExA);
+    DetourDetach_IF_Enable<IfTrueEnumFontFamiliesExW>(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
+    DetourDetach_IF_Enable<IfTrueMultiByteToWideChar>(&(PVOID&)TrueMultiByteToWideChar, HookedMultiByteToWideChar);
+    DetourDetach_IF_Enable<IfTrueWideCharToMultiByte>(&(PVOID&)TrueWideCharToMultiByte, HookedWideCharToMultiByte);
 	UnloadFont(MyFont.c_str());
     return true;
 }
-
-
-
 
 BOOL APIENTRY DllMain(HMODULE hModule,
     DWORD  ul_reason_for_call,
@@ -77,9 +70,15 @@ BOOL APIENTRY DllMain(HMODULE hModule,
     {
     case DLL_PROCESS_ATTACH:
 
+#if IfAttachDebugConsole 1
         AttachDebugConsole();
+#endif
+
         InitializeHooks();
 
+#if IfRangeCheck 1
+        PatchRangeCheck();
+#endif
         break;
     case DLL_THREAD_ATTACH:
         break;

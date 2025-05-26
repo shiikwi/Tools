@@ -2,6 +2,7 @@
 #include <tchar.h>
 #include "detours.h"
 #pragma comment(lib, "detours.lib")
+#pragma comment(linker, "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
 
 STARTUPINFO si = { sizeof(si) };
 PROCESS_INFORMATION pi;

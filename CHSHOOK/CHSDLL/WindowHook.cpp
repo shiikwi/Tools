@@ -4,7 +4,6 @@ using namespace WindowHookConfig;
 using namespace WindowHookUtils;
 
 
-
 HWND WINAPI HookedCreateWindowExA(DWORD dwExStyle,
     LPCSTR lpClassName,
     LPCSTR lpWindowName,
@@ -51,8 +50,6 @@ HWND WINAPI HookedCreateWindowExW(DWORD dwExStyle,
 
     return TrueCreateWindowExW(dwExStyle, lpClassName, newTitle, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
 }
-
-
 
 LRESULT WINAPI HookedDefWindowProcA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) {
 

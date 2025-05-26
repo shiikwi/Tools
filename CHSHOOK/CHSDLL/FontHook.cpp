@@ -209,7 +209,7 @@ int WINAPI HookedMultiByteToWideChar(
 	printf("NewCodePage: %u\n", CodePage);
 	return TrueMultiByteToWideChar(CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar);
 }
-/*
+
 int WINAPI HookedWideCharToMultiByte(
 	UINT CodePage,
 	DWORD dwFlags,
@@ -229,7 +229,6 @@ int WINAPI HookedWideCharToMultiByte(
 	printf("NewCodePage: %u\n", CodePage);
 	return TrueWideCharToMultiByte(CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar);
 }
-*/
 
 void LoadFont(const wchar_t* FontPath) {
 
@@ -247,10 +246,10 @@ void LoadFont(const wchar_t* FontPath) {
 	int WFontRet = AddFontResourceExW(FontPath, FR_NOT_ENUM, 0);
 
 	if (AFontRet && WFontRet) {
-		wprintf(L"%s Loaded Successfully", FontPath);
+		wprintf(L"%s Loaded Successfully\n", FontPath);
 	}
 	else {
-		wprintf(L"%s Loaded Unsuccessfully", FontPath);
+		wprintf(L"%s Loaded Unsuccessfully\n", FontPath);
 	}
 }
 
@@ -265,4 +264,40 @@ void UnloadFont(const wchar_t* FontPath) {
 
 	RemoveFontResourceExA(AnsiPath.c_str(), FR_NOT_ENUM, 0);
 	RemoveFontResourceExW(FontPath, FR_NOT_ENUM, 0);
+}
+
+void PatchRangeCheck() {
+	HMODULE hModule = GetModuleHandle(NULL);
+	if (!hModule) {
+		printf("GetModuleHandle Failed\n");
+		return;
+	}
+
+	MODULEINFO modInfo;
+	if (!GetModuleInformation(GetCurrentProcess(), hModule, &modInfo, sizeof(modInfo))) {
+		printf("GetModuleInformation Failed\n");
+		return;
+	}
+
+	uint8_t* baseAddress = static_cast<uint8_t*>(modInfo.lpBaseOfDll);
+	size_t ImageBaseSize = modInfo.SizeOfImage;
+	int count = 0;
+
+	for (size_t i = 0; i < ImageBaseSize - 3; i++) {
+		if (baseAddress[i] == 0x3C) {
+			if (baseAddress[i + 2] == 0x72 || baseAddress[i + 2] == 0x76 || baseAddress[i + 2] == 0x77) {
+				auto cmpvalue = baseAddress[i + 1];
+				if (cmpvalue == 0x9F || cmpvalue == 0xFC || cmpvalue == 0xA0) {
+					DWORD oldprotect;
+					VirtualProtect(&baseAddress[i + 1], 1, PAGE_EXECUTE_READWRITE, &oldprotect);
+					baseAddress[i + 1] = 0xFE;
+					VirtualProtect(&baseAddress[i + 1], 1, oldprotect, &oldprotect);
+					printf("Find RangeCheck At: %p\n", &baseAddress[i]);
+					count++;
+				}
+			}
+		}
+	}
+
+	printf("Total Change to 0xFE: %d\n", count);
 }
