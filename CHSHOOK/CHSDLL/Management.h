@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <memory>
 #include "detours.h"
 
 inline const wchar_t* NEW_TITLE = L"HOOK ´°¿Ú²âÊÔ";
@@ -32,6 +33,8 @@ static const bool IfTrueEnumFontFamiliesExW      =    0;
 static const bool IfTrueMultiByteToWideChar      =    0;
 static const bool IfTrueWideCharToMultiByte      =    0;
 
+#define    IfLoadMyFont                               1
+
 #define    IfRangeCheck                               0
 
 #define    IfAttachDebugConsole                       1
@@ -52,6 +55,29 @@ static void AttachDebugConsole() {
     freopen_s(&fDummy, "CONOUT$", "w", stderr);
     SetConsoleTitleW(L"Hook Debug Console");
 }
+
+class LoadMyFont {
+private:
+	std::wstring FontPath;
+	bool IfLoad = false;
+	void Load();
+	void UnLoad();
+
+public:
+	LoadMyFont(const wchar_t* fPath) :FontPath(fPath) {
+		printf("AddFontResourceExAW Called\n");
+		Load();
+	}
+	~LoadMyFont() {
+		UnLoad();
+	}
+
+	LoadMyFont(const LoadMyFont&) = delete;
+	LoadMyFont& operator=(const LoadMyFont&) = delete;
+
+	bool getIfLoad() { return IfLoad; }
+
+};
 
 template<bool ENABLE>
 inline void DetourAttach_IF_Enable(PVOID* realfunc, PVOID hookfunc) {

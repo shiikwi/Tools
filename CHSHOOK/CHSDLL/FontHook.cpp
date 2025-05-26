@@ -230,6 +230,40 @@ int WINAPI HookedWideCharToMultiByte(
 	return TrueWideCharToMultiByte(CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar);
 }
 
+void LoadMyFont::Load() {
+	std::string AnsiPath = [&]() {
+		int len = WideCharToMultiByte(CP_ACP, 0, FontPath.c_str(), -1, NULL, 0, NULL, NULL);
+		std::string buf(len, 0);
+		WideCharToMultiByte(CP_ACP, 0, FontPath.c_str(), -1, buf.data(), len, nullptr, nullptr);
+		return buf;
+		}();
+
+	auto AFontRet = AddFontResourceExA(AnsiPath.c_str(), FR_NOT_ENUM, 0);
+	auto WFontRet = AddFontResourceExW(FontPath.c_str(), FR_NOT_ENUM, 0);
+
+	IfLoad = (AFontRet && WFontRet);
+
+	if (IfLoad) {
+		wprintf(L"%s Loaded Successfully\n", FontPath);
+	}
+	else {
+		wprintf(L"%s Loaded Unsuccessfully\n", FontPath);
+	}
+}
+
+void LoadMyFont::UnLoad(){
+		std::string AnsiPath = [&]() {
+		int len = WideCharToMultiByte(CP_ACP, 0, FontPath.c_str(), -1, NULL, 0, NULL, NULL);
+		std::string buf(len, 0);
+		WideCharToMultiByte(CP_ACP, 0, FontPath.c_str(), -1, buf.data(), len, nullptr, nullptr);
+		return buf;
+		}();
+
+		RemoveFontResourceExA(AnsiPath.c_str(), FR_NOT_ENUM, 0);
+		RemoveFontResourceExW(FontPath.c_str(), FR_NOT_ENUM, 0);
+}
+
+/*
 void LoadFont(const wchar_t* FontPath) {
 
 	WrapIsFirstCall("AddFontResourceExAW Called\n");
@@ -265,6 +299,9 @@ void UnloadFont(const wchar_t* FontPath) {
 	RemoveFontResourceExA(AnsiPath.c_str(), FR_NOT_ENUM, 0);
 	RemoveFontResourceExW(FontPath, FR_NOT_ENUM, 0);
 }
+*/
+
+
 
 void PatchRangeCheck() {
 	HMODULE hModule = GetModuleHandle(NULL);

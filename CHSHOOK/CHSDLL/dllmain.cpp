@@ -7,6 +7,9 @@ using namespace FontHookConfig;
 
 extern "C" __declspec(dllexport) void ShiKwi(void) {}
 
+#if IfLoadMyFont 1
+static std::unique_ptr<LoadMyFont> FontPtr = std::make_unique<LoadMyFont>(MyFont);
+#endif
 
 bool InitializeHooks()
 {
@@ -27,7 +30,7 @@ bool InitializeHooks()
     DetourAttach_IF_Enable<IfTrueEnumFontFamiliesExW>(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
     DetourAttach_IF_Enable<IfTrueMultiByteToWideChar>(&(PVOID&)TrueMultiByteToWideChar, HookedMultiByteToWideChar);
     DetourAttach_IF_Enable<IfTrueWideCharToMultiByte>(&(PVOID&)TrueWideCharToMultiByte, HookedWideCharToMultiByte);
-	LoadFont(MyFont.c_str());
+	//LoadFont(MyFont.c_str());
 
     LONG status = DetourTransactionCommit();
     if (status != NO_ERROR) {
@@ -57,7 +60,7 @@ bool FreeHooks()
     DetourDetach_IF_Enable<IfTrueEnumFontFamiliesExW>(&(PVOID&)TrueEnumFontFamiliesExW, HookedEnumFontFamiliesExW);
     DetourDetach_IF_Enable<IfTrueMultiByteToWideChar>(&(PVOID&)TrueMultiByteToWideChar, HookedMultiByteToWideChar);
     DetourDetach_IF_Enable<IfTrueWideCharToMultiByte>(&(PVOID&)TrueWideCharToMultiByte, HookedWideCharToMultiByte);
-	UnloadFont(MyFont.c_str());
+	//UnloadFont(MyFont.c_str());
     return true;
 }
 
