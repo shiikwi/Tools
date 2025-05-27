@@ -1,6 +1,7 @@
 #pragma once
 #include <Windows.h>
 #include <psapi.h>
+#include <tchar.h>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -9,8 +10,8 @@
 
 inline const wchar_t* NEW_TITLE = L"HOOK ´°¿Ú²âÊÔ";
 inline const DWORD g_iCharSet = 134; //SJIS 128
-inline const LPCWSTR g_pszFaceName = L"simhei";  //nullptr
-inline const std::wstring MyFont = L"WenQuanYi.ttf";
+inline const LPCWSTR g_pszFaceName = L"WenQuanYi Micro Hei";  //nullptr
+inline const wchar_t* MyFont = L"WenQuanYi.ttf";
 
 static const bool IfTrueCreateWindowExA          =    0;
 static const bool IfTrueCreateWindowExW          =    0;
@@ -18,8 +19,8 @@ static const bool IfTrueCreateWindowExW          =    0;
 static const bool IfTrueDefWindowProcA           =    0;      
 static const bool IfTrueDefWindowProcW           =    0;
 
-static const bool IfTrueCreateFontA              =    1;
-static const bool IfTrueCreateFontW              =    1;
+static const bool IfTrueCreateFontA              =    0;
+static const bool IfTrueCreateFontW              =    0;
 
 static const bool IfTrueCreateFontIndirectA      =    0;
 static const bool IfTrueCreateFontIndirectW      =    0;
@@ -33,7 +34,7 @@ static const bool IfTrueEnumFontFamiliesExW      =    0;
 static const bool IfTrueMultiByteToWideChar      =    0;
 static const bool IfTrueWideCharToMultiByte      =    0;
 
-#define    IfLoadMyFont                               1
+#define    IfLoadMyFont                               0
 
 #define    IfRangeCheck                               0
 
@@ -41,7 +42,7 @@ static const bool IfTrueWideCharToMultiByte      =    0;
 
 
 static void WrapIsFirstCall(const char* message) {
-    static bool IsFirstCall = true;
+    bool IsFirstCall = true;
     if (IsFirstCall) {
         printf(message);
         IsFirstCall = false;

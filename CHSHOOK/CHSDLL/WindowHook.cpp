@@ -53,7 +53,7 @@ HWND WINAPI HookedCreateWindowExW(DWORD dwExStyle,
 
 LRESULT WINAPI HookedDefWindowProcA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) {
 
-    WrapIsFirstCall("DefWindowProcA Hooked\n");
+    //WrapIsFirstCall("DefWindowProcA Hooked\n");
 
     switch (Msg) {
     case WM_NCCREATE: {
@@ -61,8 +61,9 @@ LRESULT WINAPI HookedDefWindowProcA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM l
         if (csA) {
             CREATESTRUCTW csW{};
             memcpy(&csW, csA, sizeof(CREATESTRUCTW));
+            auto g_wideClass = ShiftJISToWide(csA->lpszClass);
             csW.lpszName = NEW_TITLE;
-            csW.lpszClass = ShiftJISToWide(csA->lpszClass).c_str();
+            csW.lpszClass = g_wideClass.c_str();
             return TrueDefWindowProcW(hWnd, Msg, wParam, reinterpret_cast<LPARAM>(&csW));
         }
         break;
@@ -79,7 +80,7 @@ LRESULT WINAPI HookedDefWindowProcA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM l
 
 LRESULT WINAPI HookedDefWindowProcW(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) {
 
-    WrapIsFirstCall("DefWindowProcW Hooked\n");
+    //WrapIsFirstCall("DefWindowProcW Hooked\n");
 
     switch (Msg) {
     case WM_NCCREATE: {

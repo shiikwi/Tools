@@ -8,11 +8,17 @@ using namespace FontHookConfig;
 extern "C" __declspec(dllexport) void ShiKwi(void) {}
 
 #if IfLoadMyFont 1
-static std::unique_ptr<LoadMyFont> FontPtr = std::make_unique<LoadMyFont>(MyFont);
+static std::unique_ptr<LoadMyFont> FontPtr;
 #endif
 
 bool InitializeHooks()
 {
+    printf("CHSHOOK By shikwi\n");
+
+#if IfLoadMyFont 1
+    FontPtr = std::make_unique<LoadMyFont>(MyFont);
+#endif
+
     DetourRestoreAfterWith();
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());

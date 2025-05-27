@@ -107,8 +107,8 @@ int WINAPI HookedWideCharToMultiByte(
 	LPBOOL lpUsedDefaultChar
 );
 
-void LoadFont(const wchar_t* FontPath);
+//void LoadFont(const wchar_t* FontPath);
 
-void UnloadFont(const wchar_t* FontPath);
+//void UnloadFont(const wchar_t* FontPath);
 
 void PatchRangeCheck();

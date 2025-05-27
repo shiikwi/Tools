@@ -199,14 +199,22 @@ int WINAPI HookedMultiByteToWideChar(
 	int cbMultiByte,
 	LPWSTR lpWideCharStr,
 	int cchWideChar) {
-	WrapIsFirstCall("MultiByteToWideChar Hooked\n");
-	printf("OriCodePage: %u\n", CodePage);
+
+	auto FirstPrint = [](const char* msg, int codepage) {
+		static int flag = 0;
+		if (flag < 2) {
+			printf(msg, codepage);
+			flag ++;
+			}
+		};
+
+	FirstPrint("MultiByteToWideChar Hooked\nOriCodePage: %u\n", CodePage);
 
 	if (CodePage == CP_ACP) {
 		CodePage = 932;
 	}
 	
-	printf("NewCodePage: %u\n", CodePage);
+	FirstPrint("NewCodePage: %u\n", CodePage);
 	return TrueMultiByteToWideChar(CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar);
 }
 
@@ -219,14 +227,22 @@ int WINAPI HookedWideCharToMultiByte(
 	int cbMultiByte,
 	LPCSTR lpDefaultChar,
 	LPBOOL lpUsedDefaultChar) {
-	WrapIsFirstCall("WideCharToMultiByte Hooked\n");
-	printf("OriCodePage: %u\n", CodePage);
+
+	auto FirstPrint = [](const char* msg, int codepage) {
+		static int flag = 0;
+		if (flag < 2) {
+			printf(msg, codepage);
+			flag++;
+			}
+		};
+
+	FirstPrint("WideCharToMultiByte Hooked\nOriCodePage: %u\n", CodePage);
 
 	if (CodePage == CP_ACP) {
 		CodePage = 936;
 	}
 
-	printf("NewCodePage: %u\n", CodePage);
+	FirstPrint("NewCodePage: %u\n", CodePage);
 	return TrueWideCharToMultiByte(CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar);
 }
 
@@ -244,10 +260,10 @@ void LoadMyFont::Load() {
 	IfLoad = (AFontRet && WFontRet);
 
 	if (IfLoad) {
-		wprintf(L"%s Loaded Successfully\n", FontPath);
+		printf("%s Loaded Successfully\n", AnsiPath.c_str());
 	}
 	else {
-		wprintf(L"%s Loaded Unsuccessfully\n", FontPath);
+		printf("%s Loaded Unsuccessfully\n", AnsiPath.c_str());
 	}
 }
 

@@ -10,7 +10,7 @@ PROCESS_INFORMATION pi;
 int main()
 {
     LPCSTR dllName[] = { "CHSHOOKDLL.dll" };
-   bool IfHookSuccess = DetourCreateProcessWithDllsW(L"HookTest.exe", NULL, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi, 1,dllName, NULL);
+   bool IfHookSuccess = DetourCreateProcessWithDllsW(L"Hook Test.exe", NULL, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi, 1,dllName, NULL);
     if (IfHookSuccess)
     {
         ResumeThread(pi.hThread);
