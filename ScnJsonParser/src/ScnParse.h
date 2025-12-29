@@ -29,7 +29,7 @@ public:
 
 private:
     std::shared_ptr<Scenario> scenario = std::make_shared<Scenario>();
-    std::vector<std::string> languages;
+    std::vector<std::string> languages {"ja"};
 
 
     //Deserialize all
@@ -37,6 +37,6 @@ private:
     void ParseScn(const ScnJson &scn);
 
     //Deserialize texts
-    // void CleanText(const json &jsonsc);
-    // void ParseScn(const json &j);
+    void CleanText(const json &jsonsc);
+    void ParseScn(const json &j);
 };
