@@ -1,0 +1,1 @@
+json generation and parser uses [quicktype](https://github.com/glideapps/quicktype), [nlohmann/json](https://github.com/nlohmann/json)
