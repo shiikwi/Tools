@@ -24,42 +24,51 @@ def fixedge(image: Image.Image, threshold = 128) -> Image.Image:
     
     return image
 
+def GetGroupInfo(infojson, mainimage):
+    diffgroups = {}
+    try:
+        with open(infojson, 'r', encoding='utf-8-sig') as f:
+            infodata = json.load(f)
+            infos = {item['Key']: item['Value'] for item in infodata}
+    except json.JSONDecodeError:
+        print(f"Json Parse Failed: {infojson}")
+        return
+    
+    for key, value in infos.items():
+        if(value == mainimage):
+            continue
+        parts = key.split("_")
+        if(len(parts) > 0):
+            groupid = parts[0]
+            if groupid not in diffgroups:
+                diffgroups[groupid] = []
+            diffgroups[groupid].append(value)
+    
+    return diffgroups
+
+
 def merge_images(directory: str):
-    mainimage = os.path.join(directory,"0_1.png")
     offsetjson = os.path.join(directory, "offset.json")
+    infojson = os.path.join(directory, "info.json")
 
     try:
         with open(offsetjson, 'r', encoding='utf-8-sig') as f:
             offsetdata = json.load(f)
-
+            mainimage = offsetdata[0]['Key']   #mainimage is fixed the first element
             offsets = {item['Key']: tuple(item['Value']) for item in offsetdata}
     except json.JSONDecodeError:
         print(f"Json Parse Failed: {offsetjson}")
         return
     
-    baseoffsetx, baseoffsety = offsets["0_1"]
-
-    diffgroups = {}
-    for key in offsets:
-        if key == "0_1":
-            continue
-
-        parts = key.split('_')
-        if(len(parts) > 0):
-            groupid = parts[0]
-            if groupid not in diffgroups:
-                diffgroups[groupid] = []
-            diffgroups[groupid].append(key)
-    
-    if not diffgroups:
-        return
+    diffgroups = GetGroupInfo(infojson, mainimage)
+    baseoffsetx, baseoffsety = offsets[mainimage]
     
     allcombinations = list(product(*diffgroups.values()))
     count = 0
 
-    for i, combination in enumerate(allcombinations):
+    for combination in allcombinations:
         try:
-            base_image = Image.open(mainimage).convert("RGBA")
+            base_image = Image.open(os.path.join(directory, mainimage) + ".png").convert("RGBA")
             for key in combination:
                 diffimagepath = os.path.join(directory, f"{key}.png")
 
@@ -73,7 +82,7 @@ def merge_images(directory: str):
                 base_image.paste(diffimage, (offsetx, offsety), diffimage)
                 diffimage.close()
 
-            outputfilename = f"{os.path.basename(directory)}_{count}.png"
+            outputfilename = f"merge_{os.path.basename(directory)}_{count}.png"
             output = os.path.join(directory, outputfilename)
             base_image.save(output)
             base_image.close()
@@ -100,7 +109,7 @@ def main():
     
     if args.multiple:
         for dirpath, _, filenames in os.walk(args.inputpath):
-            if '0_1.png' in filenames and 'offset.json' in filenames:
+            if 'info.json' in filenames and 'offset.json' in filenames:
                 merge_images(dirpath)
         return
     
