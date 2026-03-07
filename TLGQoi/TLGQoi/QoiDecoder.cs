@@ -72,14 +72,7 @@ namespace TLGQoi
                 return null;
 
             int band_rows = (int)qhdr.ImageHeight;
-            if (band_rows <= 0)
-                band_rows = (height + worker_count - 1) / worker_count;
-            if (band_rows <= 0)
-                band_rows = height;
-
             int sample_step = (int)qhdr.BlockWidth;
-            if (sample_step <= 0 || sample_step > 0x1000)
-                sample_step = 1;
 
             var output = new byte[width * height * 4];
             var control_stream = new ulong[worker_count + 2];
@@ -123,22 +116,18 @@ namespace TLGQoi
         private static bool ReadBpp3Tables(byte[] input, TLGQoiQHDR qhdr, out Bpp3Tables tables)
         {
             tables = null;
-            int edge_1 = Math.Max(0, Math.Min((int)qhdr.Edge1, input.Length));
-            int edge_2 = Math.Max(0, Math.Min((int)qhdr.Edge2, input.Length));
-            int edge_3 = Math.Max(0, Math.Min((int)qhdr.Edge3, input.Length));
-            if (edge_2 < edge_1)
-                edge_2 = edge_1;
-            if (edge_3 < edge_2)
-                edge_3 = input.Length;
+            int edge_1 = (int)qhdr.Edge1;
+            int edge_2 = (int)qhdr.Edge2;
+            int edge_3 = (int)qhdr.Edge3;
 
             byte[] dtbl_payload;
             int dtbl_end;
-            if (!ReadTaggedPayload(input, edge_1, 0x4C425444u, out dtbl_payload, out dtbl_end))
+            if (!ReadTaggedPayload(input, edge_1, 0x4C425444u, out dtbl_payload, out dtbl_end))  //"DTBL"
                 return false;
 
             byte[] rtbl_payload;
             int rtbl_end;
-            if (!ReadTaggedPayload(input, edge_2, 0x4C425452u, out rtbl_payload, out rtbl_end))
+            if (!ReadTaggedPayload(input, edge_2, 0x4C425452u, out rtbl_payload, out rtbl_end))  //"RTBL"
                 return false;
 
             long[] op_lengths;
