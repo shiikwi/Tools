@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace TLGQoi
@@ -365,9 +365,9 @@ namespace TLGQoi
                         int db = (int)(lo & 3) - 2;
                         int dg = (int)((lo >> 2) & 3) - 2;
                         int dr = (int)((lo >> 4) & 3) - 2;
-                        uint b = (uint)((byte)prev_pixel + db);
-                        uint g = (uint)((byte)(prev_pixel >> 8) + dg);
-                        uint r = (uint)((byte)(prev_pixel >> 16) + dr);
+                        uint b = WrapByteAdd(prev_pixel, 0, db);
+                        uint g = WrapByteAdd(prev_pixel, 8, dg);
+                        uint r = WrapByteAdd(prev_pixel, 16, dr);
                         pixel = (prev_pixel & 0xFF000000) | b | (g << 8) | (r << 16);
                     }
                     break;
@@ -376,9 +376,9 @@ namespace TLGQoi
                         int dg = (int)(lo & 0x3F) - 0x20;
                         int db = (int)(((lo >> 8) | (hi << 0x18)) & 0x0F) - 8 + dg;
                         int dr = (int)(((lo >> 12) | (hi << 0x14)) & 0x0F) - 8 + dg;
-                        uint b = (uint)((byte)prev_pixel + db);
-                        uint g = (uint)((byte)(prev_pixel >> 8) + dg);
-                        uint r = (uint)((byte)(prev_pixel >> 16) + dr);
+                        uint b = WrapByteAdd(prev_pixel, 0, db);
+                        uint g = WrapByteAdd(prev_pixel, 8, dg);
+                        uint r = WrapByteAdd(prev_pixel, 16, dr);
                         pixel = (prev_pixel & 0xFF000000) | b | (g << 8) | (r << 16);
                     }
                     break;
@@ -409,6 +409,11 @@ namespace TLGQoi
                     + ((int)(pixel >> 8 & 0xFF) * 5)
                     + ((int)(pixel >> 16 & 0xFF) * 3)
                     + ((int)(pixel & 0xFF) * 7)) & 0x3F;
+        }
+
+        private static uint WrapByteAdd(uint pixel, int shift, int delta)
+        {
+            return (uint)(((((int)pixel >> shift) & 0xFF) + delta) & 0xFF);
         }
 
         private static void WritePixel(byte[] buffer, ref int dst, uint pixel)

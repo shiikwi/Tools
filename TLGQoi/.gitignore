@@ -438,3 +438,4 @@ il2cpp
 dummpyDll
 GameAssembly.dll.*
 record/
+.dotnet
