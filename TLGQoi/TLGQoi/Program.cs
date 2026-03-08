@@ -8,11 +8,15 @@ namespace TLGQoi
     {
         static void Main(string[] args)
         {
-            var inFile = args[0];
-            var outFile = Path.ChangeExtension(inFile, ".png");
+            var inFilePath = args[0];
+            var allFiles = Directory.GetFiles(inFilePath, "*.tlg", SearchOption.AllDirectories);
+            var tlg = new ResImg();
+            foreach(var file in allFiles)
+            {
+                tlg.InitDiffMap(file);
+            }
 
-            var cov = new ResImg();
-            cov.ImgConvert(inFile, outFile);
+            tlg.ImgConvert();
         }
     }
 }

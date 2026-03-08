@@ -10,36 +10,97 @@ namespace TLGQoi
 {
     public class ResImg
     {
-        public void ImgConvert(string inFile, string outFile)
+        private Dictionary<string, string> MainTLGImg = new Dictionary<string, string>();
+        private HashSet<string> UsedMainTLG = new HashSet<string>();
+        private List<string> RefFile = new List<string>();
+
+        public void InitDiffMap(string inFile)
         {
             using (var fs = new FileStream(inFile, FileMode.Open))
             using (var br = new BinaryReader(fs))
             {
                 var sig = br.ReadBytes(0xB);
+                string fileName = Path.GetFileName(inFile);
                 if (Encoding.ASCII.GetString(sig) == "TLGqoi\0raw\x1a")
-                    ReadTLGQoi(br, outFile);
+                {
+                    MainTLGImg[fileName] = inFile;
+                }
+                else if (Encoding.ASCII.GetString(sig) == "TLGref\0raw\x1a")
+                {
+                    RefFile.Add(inFile);
+                }
             }
         }
 
-        private void ReadTLGQoi(BinaryReader br, string outPath)
+        public void ImgConvert()
         {
-            var bpp = br.ReadByte();
-            var width = br.ReadUInt32();
-            var height = br.ReadUInt32();
-            var qhdr = ReadQHDR(br);
-            var qoi = new QoiDecoder();
-            var data = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
-            byte[] output;
-            if (qhdr.FingerPrint != 0)
+            foreach (var reff in RefFile)
             {
-                output = qoi.DecodeQoiStream3(data, (int)width, (int)height, qhdr);
-            }
-            else
-            {
-                output = qoi.DecodeQoiStream4(data, (int)width, (int)height);
+                var qref = ReadQREF(reff);
+                string outPath = Path.Combine(Path.GetDirectoryName(reff), Path.GetFileNameWithoutExtension(reff) + ".png");
+                if (MainTLGImg.TryGetValue(qref.MainImgName, out var mainImgPath))
+                {
+                    UsedMainTLG.Add(qref.MainImgName);
+                    ReadTLGQoi(mainImgPath, outPath, (int)qref.SamplePhase);
+                }
+                else
+                {
+                    Console.WriteLine($"Cannot read MainImage of {Path.GetFileName(reff)}");
+                }
             }
 
-            SavePng(output, (int)width, (int)height, outPath);
+            foreach(var kvp in MainTLGImg)
+            {
+                if(!UsedMainTLG.Contains(kvp.Key))
+                {
+                    string outPath = Path.ChangeExtension(kvp.Value, ".png");
+                    ReadTLGQoi(kvp.Value, outPath, 0);
+                    Console.WriteLine($"Cannot read diff images of {kvp.Key} phase use 0");
+                }
+            }
+        }
+
+        private void ReadTLGQoi(string inPath, string outPath, int samplePhase)
+        {
+            using (var fs = new FileStream(inPath, FileMode.Open))
+            using (var br = new BinaryReader(fs))
+            {
+                br.BaseStream.Seek(0xB, SeekOrigin.Current);
+                var bpp = br.ReadByte();
+                var width = br.ReadUInt32();
+                var height = br.ReadUInt32();
+                var qhdr = ReadQHDR(br);
+                var qoi = new QoiDecoder();
+                var data = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
+                byte[] output = qhdr.FingerPrint != 0 ? qoi.DecodeQoiStream3(data, (int)width, (int)height, qhdr, samplePhase)
+                                                      : qoi.DecodeQoiStream4(data, (int)width, (int)height);
+
+                SavePng(output, (int)width, (int)height, outPath);
+            }
+        }
+
+        private QoiDecoder.TLGQoiQREF ReadQREF(string inPath)
+        {
+            using (var fs = new FileStream(inPath, FileMode.Open))
+            using (var br = new BinaryReader(fs))
+            {
+                br.BaseStream.Seek(0xB, SeekOrigin.Current);
+                var bpp = br.ReadByte();
+                var width = br.ReadUInt32();
+                var height = br.ReadUInt32();
+                var qref = new QoiDecoder.TLGQoiQREF();
+                uint tag = br.ReadUInt32();
+                uint size = br.ReadUInt32();
+                if (tag == 0x46455251)  //QREF
+                {
+                    qref.FingerPrint = br.ReadUInt32();
+                    qref.SamplePhase = br.ReadUInt32();
+                    qref.BlockWidth = br.ReadUInt32();
+                    uint nameLen = br.ReadUInt32();
+                    qref.MainImgName = Encoding.Unicode.GetString(br.ReadBytes((int)nameLen));
+                }
+                return qref;
+            }
         }
 
         private QoiDecoder.TLGQoiQHDR ReadQHDR(BinaryReader br)

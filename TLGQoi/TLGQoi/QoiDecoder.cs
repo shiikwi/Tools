@@ -30,6 +30,14 @@ namespace TLGQoi
             public long Edge3;
         }
 
+        public class TLGQoiQREF
+        {
+            public uint FingerPrint;
+            public uint SamplePhase;
+            public uint BlockWidth;
+            public string MainImgName;
+        }
+
         public byte[] DecodeQoiStream4(byte[] data, int width, int height)
         {
             int pixel_count = width * height;
@@ -59,7 +67,7 @@ namespace TLGQoi
             return output;
         }
 
-        public byte[] DecodeQoiStream3(byte[] input, int width, int height, TLGQoiQHDR qhdr)
+        public byte[] DecodeQoiStream3(byte[] input, int width, int height, TLGQoiQHDR qhdr, int SamplePhase = 0)
         {
             Bpp3Tables tables;
             if (!ReadBpp3Tables(input, qhdr, out tables))
@@ -97,7 +105,7 @@ namespace TLGQoi
                     width,
                     row_count,
                     sample_step,
-                    0,  // The external phase structure is not wired in yet. Current samples decode with phase 0.
+                    SamplePhase,
                     new OpStream(input, op_offset),
                     new RunStream(input, run_offset),
                     control_stream,
