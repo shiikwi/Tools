@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TLGQoi
@@ -36,6 +36,16 @@ namespace TLGQoi
             public uint SamplePhase;
             public uint BlockWidth;
             public string MainImgName;
+        }
+
+        public class TLGMuxEntry
+        {
+            public uint X;
+            public uint Y;
+            public uint Width;
+            public uint Height;
+            public uint Offset;
+            public uint Reserved;
         }
 
         public byte[] DecodeQoiStream4(byte[] data, int width, int height)

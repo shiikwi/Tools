@@ -10,9 +10,17 @@ namespace TLGQoi
 {
     public class ResImg
     {
+        private sealed class TlgImageData
+        {
+            public int Width;
+            public int Height;
+            public byte[] Pixels = Array.Empty<byte>();
+        }
+
         private Dictionary<string, string> MainTLGImg = new Dictionary<string, string>();
         private HashSet<string> UsedMainTLG = new HashSet<string>();
         private List<string> RefFile = new List<string>();
+        private List<string> MuxFile = new List<string>();
 
         public void InitDiffMap(string inFile)
         {
@@ -21,13 +29,18 @@ namespace TLGQoi
             {
                 var sig = br.ReadBytes(0xB);
                 string fileName = Path.GetFileName(inFile);
-                if (Encoding.ASCII.GetString(sig) == "TLGqoi\0raw\x1a")
+                string signature = Encoding.ASCII.GetString(sig);
+                if (signature == "TLGqoi\0raw\x1a")
                 {
                     MainTLGImg[fileName] = inFile;
                 }
-                else if (Encoding.ASCII.GetString(sig) == "TLGref\0raw\x1a")
+                else if (signature == "TLGref\0raw\x1a")
                 {
                     RefFile.Add(inFile);
+                }
+                else if (signature == "TLGmux\0idx\x1a")
+                {
+                    MuxFile.Add(inFile);
                 }
             }
         }
@@ -48,16 +61,25 @@ namespace TLGQoi
                     Console.WriteLine($"Cannot read MainImage of {Path.GetFileName(reff)}");
                 }
             }
+            Console.WriteLine("Process TLGqoi diff images finish");
 
-            foreach(var kvp in MainTLGImg)
+            foreach (var kvp in MainTLGImg)
             {
-                if(!UsedMainTLG.Contains(kvp.Key))
+                if (!UsedMainTLG.Contains(kvp.Key))
                 {
                     string outPath = Path.ChangeExtension(kvp.Value, ".png");
                     ReadTLGQoi(kvp.Value, outPath, 0);
                     Console.WriteLine($"Cannot read diff images of {kvp.Key} phase use 0");
                 }
             }
+            Console.WriteLine("Process TLGqoi finish");
+
+            foreach (var mux in MuxFile)
+            {
+                string outPath = Path.ChangeExtension(mux, ".png");
+                ReadTLGMux(mux, outPath);
+            }
+            Console.WriteLine("Process TLGmux finish");
         }
 
         private void ReadTLGQoi(string inPath, string outPath, int samplePhase)
@@ -65,17 +87,8 @@ namespace TLGQoi
             using (var fs = new FileStream(inPath, FileMode.Open))
             using (var br = new BinaryReader(fs))
             {
-                br.BaseStream.Seek(0xB, SeekOrigin.Current);
-                var bpp = br.ReadByte();
-                var width = br.ReadUInt32();
-                var height = br.ReadUInt32();
-                var qhdr = ReadQHDR(br);
-                var qoi = new QoiDecoder();
-                var data = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
-                byte[] output = qhdr.FingerPrint != 0 ? qoi.DecodeQoiStream3(data, (int)width, (int)height, qhdr, samplePhase)
-                                                      : qoi.DecodeQoiStream4(data, (int)width, (int)height);
-
-                SavePng(output, (int)width, (int)height, outPath);
+                var image = ReadTLGQoiImage(br, samplePhase);
+                SavePng(image.Pixels, image.Width, image.Height, outPath);
             }
         }
 
@@ -130,6 +143,110 @@ namespace TLGQoi
             }
 
             return qhdr;
+        }
+
+        private TlgImageData ReadTLGQoiImage(BinaryReader br, int samplePhase)
+        {
+            string signature = Encoding.ASCII.GetString(br.ReadBytes(0xB));
+            if (signature != "TLGqoi\0raw\x1a")
+                throw new InvalidDataException("Invalid TLGqoi header");
+
+            var bpp = br.ReadByte();
+            int width = (int)br.ReadUInt32();
+            int height = (int)br.ReadUInt32();
+            var qhdr = ReadQHDR(br);
+            var qoi = new QoiDecoder();
+            var data = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
+            byte[] output = qhdr.FingerPrint != 0 ? qoi.DecodeQoiStream3(data, width, height, qhdr, samplePhase)
+                                                  : qoi.DecodeQoiStream4(data, width, height);
+
+            return new TlgImageData
+            {
+                Width = width,
+                Height = height,
+                Pixels = output,
+            };
+        }
+
+        private void ReadTLGMux(string inPath, string outPath)
+        {
+            using (var fs = new FileStream(inPath, FileMode.Open))
+            using (var br = new BinaryReader(fs))
+            {
+                string signature = Encoding.ASCII.GetString(br.ReadBytes(0xB));
+                if (signature != "TLGmux\0idx\x1a")
+                    throw new InvalidDataException($"Invalid TLGmux header: {Path.GetFileName(inPath)}");
+
+                var bpp = br.ReadByte();
+                int canvasWidth = (int)br.ReadUInt32();
+                int canvasHeight = (int)br.ReadUInt32();
+
+                uint cmuxTag = br.ReadUInt32();
+                uint cmuxSize = br.ReadUInt32();
+                if (cmuxTag != 0x58554D43) // CMUX
+                    throw new InvalidDataException($"Missing CMUX chunk: {Path.GetFileName(inPath)}");
+
+                long cmuxStart = br.BaseStream.Position;
+                int entryCount = (int)br.ReadUInt32();
+                var entries = new List<QoiDecoder.TLGMuxEntry>(entryCount);
+                for (int i = 0; i < entryCount; ++i)
+                {
+                    entries.Add(new QoiDecoder.TLGMuxEntry
+                    {
+                        X = br.ReadUInt32(),
+                        Y = br.ReadUInt32(),
+                        Width = br.ReadUInt32(),
+                        Height = br.ReadUInt32(),
+                        Offset = br.ReadUInt32(),
+                        Reserved = br.ReadUInt32(),
+                    });
+
+                }
+
+                br.BaseStream.Position = cmuxStart + cmuxSize;
+                br.ReadBytes(8);  //Skip padding
+                long tileDataBase = br.BaseStream.Position;
+                long tileDataSize = br.BaseStream.Length - tileDataBase;
+                var canvas = new byte[canvasWidth * canvasHeight * 4];
+
+                for (int i = 0; i < entries.Count; ++i)
+                {
+                    var entry = entries[i];
+                    int tileLength = GetTileLength(entries, i, tileDataSize);
+                    br.BaseStream.Position = tileDataBase + entry.Offset;
+                    byte[] tileBytes = br.ReadBytes(tileLength);
+                    using (var ts = new MemoryStream(tileBytes, false))
+                    using (var tr = new BinaryReader(ts))
+                    {
+                        var tile = ReadTLGQoiImage(tr, 0);
+                        BlitTile(canvas, canvasWidth, canvasHeight, tile.Pixels, entry);
+                    }
+                }
+
+                SavePng(canvas, canvasWidth, canvasHeight, outPath);
+            }
+        }
+
+
+        private static int GetTileLength(List<QoiDecoder.TLGMuxEntry> entries, int index, long tileDataSize)
+        {
+            int currentOffset = (int)entries[index].Offset;
+            int nextOffset = index + 1 < entries.Count ? (int)entries[index + 1].Offset : (int)tileDataSize;
+            return nextOffset - currentOffset;
+        }
+
+        private static void BlitTile(byte[] canvas, int canvasWidth, int canvasHeight, byte[] tilePixels, QoiDecoder.TLGMuxEntry entry)
+        {
+            if (entry.X + entry.Width > canvasWidth || entry.Y + entry.Height > canvasHeight)
+                throw new InvalidDataException("TLGmux tile placement exceeds canvas bounds");
+
+            int tileStride = (int)entry.Width * 4;
+            for (int row = 0; row < entry.Height; ++row)
+            {
+                int src = row * tileStride;
+                int dst = (int)(((entry.Y + row) * canvasWidth + entry.X) * 4);
+                Buffer.BlockCopy(tilePixels, src, canvas, dst, tileStride);
+            }
         }
 
         private void SavePng(byte[] data, int w, int h, string outPath)
