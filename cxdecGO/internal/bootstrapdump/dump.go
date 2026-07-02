@@ -164,7 +164,7 @@ func Run(exePath string) (*Result, error) {
 		FinalBootstrap:   finalBootstrap,
 		ArchiveUniqueKey: unique,
 	}
-	if err := writeSummary(filepath.Join(workDir, "Bootstrap.json"), result); err != nil {
+	if err := writeSummary(filepath.Join(workDir, "bootstrap.json"), result); err != nil {
 		return nil, err
 	}
 	return result, nil
