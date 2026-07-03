@@ -27,7 +27,15 @@ func main() {
 		if len(args) < 2 {
 			return
 		}
-		err := unpackxp3.Run(args[1])
+		err := unpackxp3.Run(args[1], false)
+		if err != nil {
+			fmt.Println(err)
+		}
+	case "-r":
+		if len(args) < 2 {
+			return
+		}
+		err := unpackxp3.Run(args[1], true)
 		if err != nil {
 			fmt.Println(err)
 		}

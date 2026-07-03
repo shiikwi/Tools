@@ -3,15 +3,17 @@ package unpackxp3
 import (
 	"cxdecgo/xp3"
 	"cxdecgo/xp3/hxv4"
+	namerecover "cxdecgo/xp3/recover"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
-func Run(xp3Path string) error {
+func Run(xp3Path string, restore bool) error {
 	workDir := filepath.Join(filepath.Dir(xp3Path), "bootstrap_dump")
 	jsonPath := filepath.Join(workDir, "hxv4.json")
 	outputRoot := filepath.Join(filepath.Dir(xp3Path), "CXDECOut")
@@ -24,14 +26,14 @@ func Run(xp3Path string) error {
 		return err
 	}
 
-	if err := unpackArchive(program, xp3Path, outputRoot); err != nil {
+	if err := unpackArchive(program, xp3Path, outputRoot, restore); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string) error {
+func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string, restore bool) error {
 	info, entries, blob, index, err := xp3.ReadArchive(archivePath)
 	if err != nil {
 		return err
@@ -59,69 +61,64 @@ func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string)
 	}{
 		Archive: info,
 		HXV4:    descriptor,
-		Records: make([]map[string]any, 0, len(entries)),
+		Records: make([]map[string]any, len(entries)),
 	}
 
 	hasWarning := len(entries) > 0 && xp3.IsWarningEntry(0, entries[0])
-	for i, entry := range entries {
-		item := map[string]any{
-			"index": i,
-			"name":  entry.Name,
-		}
-		if entry.Adler32 != nil {
-			item["expected_adler32"] = fmt.Sprintf("0x%08x", *entry.Adler32)
-		}
-
-		hint := firstRecord(records, i, hasWarning)
-		if hint != nil {
-			item["domain_hash"] = hint.DomainHash
-			item["file_hash"] = hint.FileHash
-		}
-
-		if xp3.IsWarningEntry(i, entry) {
-			item["status"] = "skipped_warning"
-			manifest.SkippedWarnings++
-			manifest.Records = append(manifest.Records, item)
-			continue
-		}
-
-		data, actual, _, used, _, err := recoverEntry(program, descriptor, records, blob, i, entry, hasWarning)
-		if used != nil {
-			item["domain_hash"] = used.DomainHash
-			item["file_hash"] = used.FileHash
-			// item["filter_open_flag"] = openFlag
-		}
+	namesPath := filepath.Join(outputRoot, "HxNames.lst")
+	names := map[string]string{}
+	if restore {
+		names, err = namerecover.LoadList(namesPath)
 		if err != nil {
-			item["status"] = "error"
-			item["error"] = err.Error()
-			item["actual_adler32"] = fmt.Sprintf("0x%08x", actual)
-			if errors.Is(err, xp3.ErrFilter) {
-				item["status"] = "missing_filter"
-			}
-			manifest.Failed++
-			manifest.Records = append(manifest.Records, item)
-			continue
-		}
-
-		outputPath := uniquePath(filepath.Join(append([]string{archiveDir}, outputParts(i, used)...)...))
-		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(outputPath, data, 0644); err != nil {
-			item["status"] = "error"
-			item["error"] = err.Error()
-			manifest.Failed++
-			manifest.Records = append(manifest.Records, item)
-			continue
-		}
+	}
 
-		item["status"] = "written"
-		item["actual_adler32"] = fmt.Sprintf("0x%08x", actual)
-		if entry.Adler32 != nil {
-			item["adler_ok"] = actual == *entry.Adler32
+	if len(entries) != 0 {
+		workers := runtime.NumCPU()
+		if workers > len(entries) {
+			workers = len(entries)
 		}
-		manifest.Written++
-		manifest.Records = append(manifest.Records, item)
+		jobs := make(chan int)
+		done := make(chan struct{}, workers)
+		for w := 0; w < workers; w++ {
+			go func() {
+				for i := range jobs {
+					manifest.Records[i] = unpackEntry(program, descriptor, records, blob, archiveDir, outputRoot, i, entries[i], hasWarning)
+				}
+				done <- struct{}{}
+			}()
+		}
+		for i := range entries {
+			jobs <- i
+		}
+		close(jobs)
+		for w := 0; w < workers; w++ {
+			<-done
+		}
+	}
+
+	for _, item := range manifest.Records {
+		status, _ := item["status"].(string)
+		switch status {
+		case "written":
+			manifest.Written++
+		case "skipped_warning":
+			manifest.SkippedWarnings++
+		case "error", "missing_filter":
+			manifest.Failed++
+		}
+	}
+
+	if restore {
+		names, err = namerecover.Build(archiveDir, names)
+		if err != nil {
+			return err
+		}
+		if err := namerecover.SaveList(namesPath, names); err != nil {
+			return err
+		}
+		fmt.Printf("restoreFiles restore %d files\n", restoreNames(outputRoot, archiveDir, manifest.Records, names))
 	}
 
 	data, err := json.MarshalIndent(manifest, "", "  ")
@@ -136,6 +133,105 @@ func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string)
 		return fmt.Errorf("check unpack fail")
 	}
 	return nil
+}
+
+func unpackEntry(program *hxv4.Program, descriptor *hxv4.Descriptor, records []hxv4.Record, blob []byte, archiveDir string, outputRoot string, i int, entry xp3.Entry, hasWarning bool) map[string]any {
+	item := map[string]any{
+		"index": i,
+		"name":  entry.Name,
+	}
+	if entry.Adler32 != nil {
+		item["expected_adler32"] = fmt.Sprintf("0x%08x", *entry.Adler32)
+	}
+
+	hint := firstRecord(records, i, hasWarning)
+	if hint != nil {
+		item["domain_hash"] = hint.DomainHash
+		item["file_hash"] = hint.FileHash
+	}
+
+	if xp3.IsWarningEntry(i, entry) {
+		item["status"] = "skipped_warning"
+		return item
+	}
+
+	data, actual, _, used, _, err := recoverEntry(program, descriptor, records, blob, i, entry, hasWarning)
+	record := used
+	if record == nil {
+		record = hint
+	}
+	if record != nil {
+		item["domain_hash"] = record.DomainHash
+		item["file_hash"] = record.FileHash
+	}
+	if err != nil {
+		item["status"] = "error"
+		item["error"] = err.Error()
+		item["actual_adler32"] = fmt.Sprintf("0x%08x", actual)
+		if errors.Is(err, xp3.ErrFilter) {
+			item["status"] = "missing_filter"
+		}
+		return item
+	}
+
+	parts := []string{"unknown", fmt.Sprintf("%05d", i)}
+	if record != nil && record.DomainHash != "" && record.FileHash != "" {
+		parts = []string{record.DomainHash, record.FileHash}
+	}
+	outputPath := filepath.Join(append([]string{archiveDir}, parts...)...)
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		item["status"] = "error"
+		item["error"] = err.Error()
+		return item
+	}
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		item["status"] = "error"
+		item["error"] = err.Error()
+		return item
+	}
+
+	if rel, err := filepath.Rel(outputRoot, outputPath); err == nil {
+		item["output"] = filepath.ToSlash(rel)
+	}
+	item["status"] = "written"
+	item["actual_adler32"] = fmt.Sprintf("0x%08x", actual)
+	if entry.Adler32 != nil {
+		item["adler_ok"] = actual == *entry.Adler32
+	}
+	return item
+}
+
+func restoreNames(outputRoot, archiveDir string, records []map[string]any, names map[string]string) int {
+	count := 0
+	for _, item := range records {
+		if item["status"] != "written" {
+			continue
+		}
+		domainHash, _ := item["domain_hash"].(string)
+		fileHash, _ := item["file_hash"].(string)
+		archiveName, ok := namerecover.Resolve(names, domainHash, fileHash)
+		if !ok {
+			continue
+		}
+		srcRel, _ := item["output"].(string)
+		src := filepath.Join(outputRoot, filepath.FromSlash(srcRel))
+		dst := filepath.Join(archiveDir, filepath.FromSlash(archiveName))
+		if src == dst {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			continue
+		}
+		if err := os.Rename(src, dst); err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(outputRoot, dst)
+		if err == nil {
+			item["output"] = filepath.ToSlash(rel)
+		}
+		count++
+	}
+	return count
 }
 
 func recoverEntry(program *hxv4.Program, descriptor *hxv4.Descriptor, records []hxv4.Record, blob []byte, index int, entry xp3.Entry, hasWarning bool) ([]byte, uint32, bool, *hxv4.Record, uint16, error) {
@@ -198,24 +294,4 @@ func openFlagCandidates(descriptor *hxv4.Descriptor, record *hxv4.Record) []uint
 		values = append(values, value)
 	}
 	return values
-}
-
-func outputParts(index int, record *hxv4.Record) []string {
-	if record == nil || record.DomainHash == "" || record.FileHash == "" {
-		return []string{"unknown", fmt.Sprintf("%05d", index)}
-	}
-	return []string{record.DomainHash, record.FileHash}
-}
-
-func uniquePath(path string) string {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return path
-	}
-	for i := 1; i < 100000; i++ {
-		candidate := fmt.Sprintf("%s.%d", path, i)
-		if _, err := os.Stat(candidate); os.IsNotExist(err) {
-			return candidate
-		}
-	}
-	return path
 }
