@@ -17,7 +17,8 @@ var finders = []struct {
 	{"defaultNames", defaultNames},
 	{"scanSceneList", scanSceneList},
 	{"scanTJS", scanTJS},
-	{"scanText", scanText},
+	{"scanResourceTables", scanResourceTables},
+	{"scanPSB", scanPSB},
 }
 
 func Build(root string, base map[string]string) (map[string]string, error) {
