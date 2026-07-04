@@ -10,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
 func Run(xp3Path string, restore bool) error {
+	fmt.Println("==========unpack xp3 phase==========")
 	workDir := filepath.Join(filepath.Dir(xp3Path), "bootstrap_dump")
 	jsonPath := filepath.Join(workDir, "hxv4.json")
 	outputRoot := filepath.Join(filepath.Dir(xp3Path), "CXDECOut")
@@ -30,6 +32,7 @@ func Run(xp3Path string, restore bool) error {
 		return err
 	}
 
+	cleanupEmptyDirs(outputRoot)
 	return nil
 }
 
@@ -98,6 +101,8 @@ func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string,
 		}
 	}
 
+	fmt.Printf("unpack %s finish\n", archivePath)
+
 	for _, item := range manifest.Records {
 		status, _ := item["status"].(string)
 		switch status {
@@ -111,6 +116,7 @@ func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string,
 	}
 
 	if restore {
+		fmt.Println("==========restore name phase==========")
 		names, err = namerecover.Build(archiveDir, names)
 		if err != nil {
 			return err
@@ -209,7 +215,7 @@ func restoreNames(outputRoot, archiveDir string, records []map[string]any, names
 		}
 		domainHash, _ := item["domain_hash"].(string)
 		fileHash, _ := item["file_hash"].(string)
-		archiveName, ok := namerecover.Resolve(names, domainHash, fileHash)
+		archiveName, ok, full := namerecover.ResolvePartial(names, domainHash, fileHash)
 		if !ok {
 			continue
 		}
@@ -222,14 +228,43 @@ func restoreNames(outputRoot, archiveDir string, records []map[string]any, names
 		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 			continue
 		}
-		if err := os.Rename(src, dst); err != nil {
-			continue
+		if src != dst {
+			if _, err := os.Stat(dst); err == nil {
+				if err := os.Remove(dst); err != nil {
+					continue
+				}
+			}
+			if err := os.Rename(src, dst); err != nil {
+				continue
+			}
 		}
 		rel, err := filepath.Rel(outputRoot, dst)
 		if err == nil {
 			item["output"] = filepath.ToSlash(rel)
 		}
+		item["name_restored"] = full
 		count++
+	}
+	return count
+}
+
+func cleanupEmptyDirs(root string) int {
+	dirs := make([]string, 0)
+	filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err == nil && entry.IsDir() && path != root {
+			dirs = append(dirs, path)
+		}
+		return nil
+	})
+	sort.Slice(dirs, func(i, j int) bool {
+		return len(dirs[i]) > len(dirs[j])
+	})
+
+	count := 0
+	for _, dir := range dirs {
+		if err := os.Remove(dir); err == nil {
+			count++
+		}
 	}
 	return count
 }

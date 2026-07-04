@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -50,6 +51,8 @@ type Result struct {
 }
 
 func Run(exePath string) (*Result, error) {
+	fmt.Println("==========dump bootstrap phase==========")
+
 	absExe, err := filepath.Abs(exePath)
 	if err != nil {
 		return nil, err
@@ -167,6 +170,11 @@ func Run(exePath string) (*Result, error) {
 	if err := writeSummary(filepath.Join(workDir, "bootstrap.json"), result); err != nil {
 		return nil, err
 	}
+
+	if err := genHxv4(filepath.Join(workDir, "bootstrap.json")); err != nil {
+		return nil, err
+	}
+
 	return result, nil
 }
 
@@ -216,25 +224,40 @@ func bresKeyFromURL(url string) (string, error) {
 func findBootstrapPrefix(stringsPool []string) (string, error) {
 	var candidates []string
 	seen := map[string]bool{}
-	for _, value := range stringsPool {
-		if value == "" || seen[value] || !strings.Contains(strings.ToLower(value), "all") {
+	for i, value := range stringsPool {
+		if !strings.EqualFold(value, "startup.tjs") || i < 2 || stringsPool[i-1] != "" {
 			continue
 		}
-		seen[value] = true
-		candidates = append(candidates, value)
+		prefix := stringsPool[i-2]
+		if prefix == "" || seen[prefix] {
+			continue
+		}
+		seen[prefix] = true
+		candidates = append(candidates, prefix)
 	}
 	if len(candidates) == 1 {
 		return candidates[0], nil
 	}
-	var reserved []string
-	for _, value := range candidates {
-		lower := strings.ToLower(value)
-		if strings.Contains(lower, "right") || strings.Contains(lower, "reserved") {
-			reserved = append(reserved, value)
+
+	for i, value := range stringsPool {
+		if !strings.EqualFold(value, "startup.tjs") {
+			continue
+		}
+		for j := i - 1; j >= 0; j-- {
+			prefix := stringsPool[j]
+			if prefix == "" || strings.EqualFold(prefix, "object") || strings.EqualFold(prefix, "startup.tjs") {
+				continue
+			}
+			if seen[prefix] {
+				break
+			}
+			seen[prefix] = true
+			candidates = append(candidates, prefix)
+			break
 		}
 	}
-	if len(reserved) == 1 {
-		return reserved[0], nil
+	if len(candidates) == 1 {
+		return candidates[0], nil
 	}
 
 	return "", fmt.Errorf("failed find BootstrapPrefix")
@@ -283,4 +306,31 @@ func writeSummary(path string, result *Result) error {
 	}
 	data = append(data, '\n')
 	return os.WriteFile(path, data, 0644)
+}
+
+func genHxv4(path string) error {
+	fmt.Println("==========gen Hxv4 phase==========")
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve executable path failed: %w", err)
+	}
+	workDir := filepath.Dir(exePath)
+	derivePath := filepath.Join(workDir, "derive.cs")
+	cmd := exec.Command("dotnet",
+		"run",
+		"--file", derivePath,
+		"-a", "x86",
+		"--",
+		path,
+	)
+	cmd.Dir = workDir
+	outstr, err := cmd.CombinedOutput()
+	if len(outstr) != 0 {
+		fmt.Print(string(outstr))
+	}
+	if err != nil {
+		return fmt.Errorf("dotnet run failed: %w, %s\n", err, outstr)
+	}
+
+	return nil
 }

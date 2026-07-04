@@ -703,7 +703,7 @@ func psbStringCandidates(raw string) []string {
 	case strings.HasPrefix(lower, "map") && hasDigit(lower[3:]):
 		return tableCandidates(name, []string{".png"})
 	case audioStem(name) || voiceLineStem(lower):
-		return tableCandidates(name, []string{".ogg"})
+		return tableCandidates(name, psbAudioExts)
 	case strings.HasPrefix(lower, "cg_"):
 		out := psbPoolImageCandidates(name)
 		if trimmed := strings.TrimPrefix(name, "cg_"); trimmed != name {
@@ -720,7 +720,7 @@ func psbStringCandidates(raw string) []string {
 }
 
 func psbPoolImageCandidates(name string) []string {
-	return tableCandidates(name, []string{".png", ".pimg"})
+	return tableCandidates(name, []string{".png", ".pimg", ".tlg"})
 }
 
 func psbImageStem(file string) bool {

@@ -18,6 +18,7 @@ var finders = []struct {
 	{"scanSceneList", scanSceneList},
 	{"scanTJS", scanTJS},
 	{"scanResourceTables", scanResourceTables},
+	{"scanTLGRefs", scanTLGRefs},
 	{"scanPSB", scanPSB},
 }
 
@@ -56,6 +57,21 @@ func Resolve(names map[string]string, domainHash, fileHash string) (string, bool
 		return "", false
 	}
 	return dir + file, true
+}
+
+func ResolvePartial(names map[string]string, domainHash, fileHash string) (string, bool, bool) {
+	domainHash = strings.ToLower(domainHash)
+	fileHash = strings.ToLower(fileHash)
+
+	dir, ok := names[domainHash]
+	if !ok {
+		return "", false, false
+	}
+	file, full := names[fileHash]
+	if !full {
+		file = fileHash
+	}
+	return dir + file, true, full
 }
 
 func defaultNames(_ string, domain string) (map[string]string, error) {
