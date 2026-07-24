@@ -3,6 +3,9 @@ package opcode
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 )
 
 type CodeLine struct {
@@ -62,4 +65,31 @@ func ParseInfo(data []byte) ([]CodeLine, map[byte]bool, error) {
 	}
 
 	return result, opcodes, nil
+}
+
+func LoadOpcodeTxt(path string) (map[byte]string, error) {
+	data, _ := os.ReadFile(path)
+
+	names := make(map[byte]string)
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		left, right, ok := strings.Cut(strings.TrimSpace(line), ":")
+		if !ok {
+			return nil, fmt.Errorf("Load opcode fail")
+		}
+
+		left = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(left)), "0x")
+		value, err := strconv.ParseUint(left, 16, 8)
+		if err != nil {
+			return nil, fmt.Errorf("bad opcode line: %s", line)
+		}
+
+		names[byte(value)] = strings.TrimSpace(right)
+	}
+
+	return names, nil
 }
