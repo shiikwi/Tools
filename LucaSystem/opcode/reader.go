@@ -37,7 +37,7 @@ func (v *VM) ReadU32() (uint32, error) {
 }
 
 func (v *VM) ReadByte() (byte, error) {
-	if v.pos > len(v.data) {
+	if v.pos+1 > len(v.data) {
 		return 0, fmt.Errorf("ReadByte out of range")
 	}
 
@@ -101,4 +101,20 @@ func (v *VM) ReadUTF82NULL() (string, error) {
 		buf = append(buf, b)
 	}
 	return string(buf), nil
+}
+
+func (v *VM) ReadUTF162NULL() (string, error) {
+	var buf []uint16
+	for {
+		b, err := v.ReadU16()
+		if err != nil {
+			return "", nil
+		}
+
+		if b == 0x0000 {
+			break
+		}
+		buf = append(buf, b)
+	}
+	return string(utf16.Decode(buf)), nil
 }
