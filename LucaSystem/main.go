@@ -14,17 +14,36 @@ import (
 )
 
 func main() {
+	if len(os.Args) < 3 || len(os.Args) > 4 {
+		PrintUsage()
+		return
+	}
+
 	chocie := os.Args[1]
 
 	if chocie == "-d" {
-		data, _ := os.ReadFile(os.Args[2])
-		opinfo, ops, err := opcode.ParseInfo(data)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+		dir := os.Args[2]
+		entries, _ := os.ReadDir(dir)
 
-		WriteOpInfo(opinfo, ops, filepath.Dir(os.Args[1]))
+		var opinfos []opcode.CodeLine
+		var ops = make(map[byte]bool)
+
+		for _, entry := range entries {
+			filePath := filepath.Join(dir, entry.Name())
+			data, _ := os.ReadFile(filePath)
+
+			opinfo, op, err := opcode.ParseInfo(data)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			opinfos = append(opinfos, opinfo...)
+			for k, v := range op {
+				ops[k] = v
+			}
+		}
+		WriteOpInfo(opinfos, ops)
 		return
 	}
 
@@ -37,8 +56,8 @@ func main() {
 	}
 }
 
-func WriteOpInfo(opinfo []opcode.CodeLine, ops map[byte]bool, dirPath string) {
-	opfile, _ := os.Create(filepath.Join(dirPath, "OPCODE.txt"))
+func WriteOpInfo(opinfo []opcode.CodeLine, ops map[byte]bool) {
+	opfile, _ := os.Create("OPCODE.txt")
 	defer opfile.Close()
 
 	keys := slices.Sorted(maps.Keys(ops))
@@ -46,7 +65,7 @@ func WriteOpInfo(opinfo []opcode.CodeLine, ops map[byte]bool, dirPath string) {
 		fmt.Fprintf(opfile, "0x%02X:\n", k)
 	}
 
-	infofile, _ := os.Create(filepath.Join(dirPath, "OPINFO.txt"))
+	infofile, _ := os.Create("OPINFO.txt")
 	defer infofile.Close()
 
 	for _, info := range opinfo {
@@ -65,8 +84,8 @@ func WriteOpInfo(opinfo []opcode.CodeLine, ops map[byte]bool, dirPath string) {
 }
 
 func PrintUsage() {
-	fmt.Println("Usage: LucaSystemGO.exe -d <scriptpath>      scan opcodes")
-	fmt.Println("       LucaSystemGO.exe -gamename -e <scriptpath>    export game's script")
+	fmt.Println("Usage: LucaSystemGO.exe -d <scriptfolderpath>      scan opcodes")
+	fmt.Println("       LucaSystemGO.exe -gamename -e <scriptfolderpath>    export game's script")
 	fmt.Println("SupportGameList:")
 
 	names := make([]string, 0, len(scheme.Games))
@@ -87,49 +106,55 @@ func ExportSC() error {
 		PrintUsage()
 		return fmt.Errorf("Unsupport game")
 	}
-	script, err := os.ReadFile(os.Args[3])
-	if err != nil {
-		return err
-	}
 
 	opNames, err := opcode.LoadOpcodeTxt("OPCODE.txt")
 	if err != nil {
 		return err
 	}
-
-	outPath := filepath.Join(filepath.Dir(os.Args[3]), filepath.Base(os.Args[3])+".txt")
-	oufile, _ := os.Create(outPath)
-
-	lines, _, err := opcode.ParseInfo(script)
 	game := newGameVM()
 
-	for _, line := range lines {
-		name := opNames[line.Opcode]
-		if name != "" {
-			text, handled, err := game.ExportScript(name, line.Extra, line.Payload)
-			if err != nil {
-				return fmt.Errorf("vm execute fail")
-			} else if handled {
-				fmt.Fprintf(oufile, "%s(%s)(%s)\n",
-					name,
-					util.Bytes2HexStr(line.Extra),
-					text,
-				)
-				continue
-			} else {
-				fmt.Fprintf(oufile, "%s(%s)(%s)\n",
-					name,
-					util.Bytes2HexStr(line.Extra),
-					text,
-				)
-				continue
+	dir := os.Args[3]
+	entries, _ := os.ReadDir(dir)
+	for _, entry := range entries {
+		scriptPath := filepath.Join(dir, entry.Name())
+
+		outPath := filepath.Join(dir, entry.Name()+".txt")
+		outfile, _ := os.Create(outPath)
+
+		data, _ := os.ReadFile(scriptPath)
+		lines, _, _ := opcode.ParseInfo(data)
+
+		for _, line := range lines {
+			name := opNames[line.Opcode]
+			if name != "" {
+				text, handled, err := game.ExportScript(name, line.Extra, line.Payload)
+				if err != nil {
+					return fmt.Errorf("vm execute fail")
+				} else if handled {
+					fmt.Fprintf(outfile, "%s(%s)(%s)\n",
+						name,
+						util.Bytes2HexStr(line.Extra),
+						text,
+					)
+					continue
+				} else {
+					fmt.Fprintf(outfile, "%s(%s)(%s)\n",
+						name,
+						util.Bytes2HexStr(line.Extra),
+						text,
+					)
+					continue
+				}
 			}
+			fmt.Fprintf(outfile, "OP_%02X(%s)(%s)\n",
+				line.Opcode,
+				util.Bytes2HexStr(line.Extra),
+				util.Bytes2HexStr(line.Payload),
+			)
 		}
-		fmt.Fprintf(oufile, "OP_%02X(%s)(%s)\n",
-			line.Opcode,
-			util.Bytes2HexStr(line.Extra),
-			util.Bytes2HexStr(line.Payload),
-		)
+
+		outfile.Close()
 	}
+
 	return nil
 }
