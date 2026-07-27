@@ -129,7 +129,7 @@ func ExportSC() error {
 			if name != "" {
 				text, handled, err := game.ExportScript(name, line.Extra, line.Payload)
 				if err != nil {
-					return fmt.Errorf("vm execute fail")
+					return fmt.Errorf("vm execute fail, %s", err)
 				} else if handled {
 					fmt.Fprintf(outfile, "%s(%s)(%s)\n",
 						name,
@@ -153,6 +153,7 @@ func ExportSC() error {
 			)
 		}
 
+		fmt.Printf("Export %s Success\n", entry.Name())
 		outfile.Close()
 	}
 

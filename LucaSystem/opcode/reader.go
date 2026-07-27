@@ -92,7 +92,7 @@ func (v *VM) ReadUTF82NULL() (string, error) {
 	for {
 		b, err := v.ReadByte()
 		if err != nil {
-			return "", nil
+			return "", err
 		}
 
 		if b == 0x00 {
@@ -108,7 +108,7 @@ func (v *VM) ReadUTF162NULL() (string, error) {
 	for {
 		b, err := v.ReadU16()
 		if err != nil {
-			return "", nil
+			return "", err
 		}
 
 		if b == 0x0000 {

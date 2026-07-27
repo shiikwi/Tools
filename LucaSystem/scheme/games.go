@@ -6,4 +6,5 @@ type Game interface {
 
 var Games = map[string]func() Game{
 	"dreamher": func() Game { return &DreamHerVM{} },
+	"usonatsu": func() Game { return &usonatsuVM{} },
 }
