@@ -20,6 +20,9 @@ func ParseBox(data []byte) ([]script.TXTScript, error) {
 	for i := uint32(0); i < count; i++ {
 		entryPos := uint32(pos) + i*0x28
 		txtName := strings.TrimRight(util.DecodeUTF16(data[entryPos:entryPos+0x20]), "\x00")
+		if end := strings.IndexByte(txtName, 0); end > 0 {
+			txtName = txtName[:end]
+		}
 		offset := binary.BigEndian.Uint32(data[entryPos+0x20 : entryPos+0x24])
 		size := binary.BigEndian.Uint32(data[entryPos+0x24 : entryPos+0x28])
 

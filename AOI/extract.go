@@ -2,6 +2,7 @@ package main
 
 import (
 	"aoiTool/box"
+	"aoiTool/script"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,4 +30,20 @@ func ExtractBox(boxPath, outDir string) ([]string, error) {
 	}
 
 	return names, nil
+}
+
+func DisassembleFile(filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	return WriteASM(filePath, data)
+}
+
+func WriteASM(filePath string, data []byte) error {
+	asm, err := script.Disassemble(data)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filePath+".asm", []byte(asm), 0o644)
 }
