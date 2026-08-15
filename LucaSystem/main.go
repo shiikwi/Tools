@@ -4,56 +4,82 @@ import (
 	"LucaSystemGO/opcode"
 	"LucaSystemGO/scheme"
 	"LucaSystemGO/util"
+	"flag"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"sort"
-	"strings"
 )
 
 func main() {
-	if len(os.Args) < 3 || len(os.Args) > 4 {
-		PrintUsage()
+	gameName, dir, scan := ParseArgs()
+
+	if scan {
+		ScanOpcodes(dir)
 		return
 	}
 
-	chocie := os.Args[1]
+	err := ExportSC(gameName, dir)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("Export finish")
+}
 
-	if chocie == "-d" {
-		dir := os.Args[2]
-		entries, _ := os.ReadDir(dir)
+func ParseArgs() (string, string, bool) {
+	fs := flag.NewFlagSet("LucaSystemGO", flag.ExitOnError)
+	fs.Usage = func() {
+		PrintUsage(fs)
+	}
 
-		var opinfos []opcode.CodeLine
-		var ops = make(map[byte]bool)
+	scanDir := fs.String("d", "", "scan opcodes")
+	scriptDir := fs.String("e", "", "export game's script")
+	gameFlags := make(map[string]*bool)
+	for name := range scheme.Games {
+		gameFlags[name] = fs.Bool(name, false, "export game's script")
+	}
 
-		for _, entry := range entries {
-			filePath := filepath.Join(dir, entry.Name())
-			data, _ := os.ReadFile(filePath)
-
-			opinfo, op, err := opcode.ParseInfo(data)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-
-			opinfos = append(opinfos, opinfo...)
-			for k, v := range op {
-				ops[k] = v
-			}
+	fs.Parse(os.Args[1:])
+	gameName := ""
+	for name, value := range gameFlags {
+		if *value {
+			gameName = name
 		}
-		WriteOpInfo(opinfos, ops)
-		return
 	}
+	if *scanDir != "" {
+		return "", *scanDir, true
+	}
+	return gameName, *scriptDir, false
+}
 
-	if os.Args[2] == "-e" {
-		err := ExportSC()
+func ScanOpcodes(dir string) {
+	entries, _ := os.ReadDir(dir)
+
+	var opinfos []opcode.CodeLine
+	var ops = make(map[byte]bool)
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filePath := filepath.Join(dir, entry.Name())
+		data, _ := os.ReadFile(filePath)
+
+		opinfo, op, err := opcode.ParseInfo(data)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("Skip %s\n", entry.Name())
+			continue
 		}
-		fmt.Println("Export finish")
+
+		opinfos = append(opinfos, opinfo...)
+		for k, v := range op {
+			ops[k] = v
+		}
 	}
+	WriteOpInfo(opinfos, ops)
 }
 
 func WriteOpInfo(opinfo []opcode.CodeLine, ops map[byte]bool) {
@@ -83,10 +109,10 @@ func WriteOpInfo(opinfo []opcode.CodeLine, ops map[byte]bool) {
 	}
 }
 
-func PrintUsage() {
-	fmt.Println("Usage: LucaSystemGO.exe -d <scriptfolderpath>      scan opcodes")
-	fmt.Println("       LucaSystemGO.exe -gamename -e <scriptfolderpath>    export game's script")
-	fmt.Println("SupportGameList:")
+func PrintUsage(fs *flag.FlagSet) {
+	fmt.Fprintln(fs.Output(), "Usage: LucaSystemGO.exe -d <scriptfolderpath>      scan opcodes")
+	fmt.Fprintln(fs.Output(), "       LucaSystemGO.exe -gamename -e <scriptfolderpath>    export game's script")
+	fmt.Fprintln(fs.Output(), "SupportGameList:")
 
 	names := make([]string, 0, len(scheme.Games))
 	for name := range scheme.Games {
@@ -95,15 +121,13 @@ func PrintUsage() {
 
 	sort.Strings(names)
 	for _, name := range names {
-		fmt.Printf(" - %s\n", name)
+		fmt.Fprintf(fs.Output(), " -%s\n", name)
 	}
 }
 
-func ExportSC() error {
-	gameName := strings.TrimPrefix(os.Args[1], "-")
+func ExportSC(gameName, dir string) error {
 	newGameVM, ok := scheme.Games[gameName]
 	if !ok {
-		PrintUsage()
 		return fmt.Errorf("Unsupport game")
 	}
 
@@ -113,7 +137,6 @@ func ExportSC() error {
 	}
 	game := newGameVM()
 
-	dir := os.Args[3]
 	entries, _ := os.ReadDir(dir)
 	for _, entry := range entries {
 		scriptPath := filepath.Join(dir, entry.Name())

@@ -26,38 +26,51 @@ func ParseInfo(data []byte) ([]CodeLine, map[byte]bool, error) {
 			return nil, nil, fmt.Errorf("0x%X: Parse fail, out of range", off)
 		}
 
-		var size int16 = int16(binary.LittleEndian.Uint16(data[off:]))
+		var size int = int(binary.LittleEndian.Uint16(data[off:]))
+		if size < 4 {
+			return nil, nil, fmt.Errorf("0x%X: Parse fail, bad size: %d", off, size)
+		}
+		end := off + size
+		if end > len(data) {
+			return nil, nil, fmt.Errorf("0x%X: Parse fail, out of range", off)
+		}
+
 		var op byte = data[off+2]
 		var flag byte = data[off+3]
 
 		var extra []byte
 		cursor := off + 4
+		extraSize := 0
 
 		switch flag & 0x03 {
 		case 0x00:
 		case 0x01:
-			extra = data[cursor : cursor+2]
-			cursor += 2
+			extraSize = 2
 		case 0x02:
-			extra = data[cursor : cursor+2]
-			cursor += 2
+			extraSize = 2
 		case 0x03:
-			extra = data[cursor : cursor+4]
-			cursor += 4
+			extraSize = 4
+		}
+		if cursor+extraSize > end {
+			return nil, nil, fmt.Errorf("0x%X: Parse fail, extra out of range", off)
+		}
+		if extraSize > 0 {
+			extra = data[cursor : cursor+extraSize]
+			cursor += extraSize
 		}
 
 		result = append(result, CodeLine{
 			Offset:  off,
-			Size:    size,
+			Size:    int16(size),
 			Opcode:  op,
 			Flag:    flag,
 			Extra:   extra,
-			Payload: data[cursor : off+int(size)],
+			Payload: data[cursor:end],
 		})
 
 		opcodes[op] = true
 
-		pad := int(size)
+		pad := size
 		if pad&1 != 0 {
 			pad++
 		}
