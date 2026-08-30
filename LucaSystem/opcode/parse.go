@@ -17,7 +17,7 @@ type CodeLine struct {
 	Payload []byte
 }
 
-func ParseInfo(data []byte) ([]CodeLine, map[byte]bool, error) {
+func ParseInfo(data []byte, old bool) ([]CodeLine, map[byte]bool, error) {
 	var result []CodeLine
 	opcodes := make(map[byte]bool)
 
@@ -47,7 +47,11 @@ func ParseInfo(data []byte) ([]CodeLine, map[byte]bool, error) {
 		case 0x01:
 			extraSize = 2
 		case 0x02:
-			extraSize = 2
+			if old {
+				extraSize = 4
+			} else {
+				extraSize = 2
+			}
 		case 0x03:
 			extraSize = 4
 		}
