@@ -772,3 +772,26 @@ func psbImageCommand(command string) bool {
 func psbVideoCommand(command string) bool {
 	return command == "movie" || command == "video" || strings.Contains(command, "movie")
 }
+
+func ParsePSBAllStrings(data []byte) ([]string, error) {
+	root, pool, err := parsePSB(data)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(pool)+16)
+	out = append(out, pool...)
+	var walk func(v psbValue)
+	walk = func(v psbValue) {
+		if v.kind == psbString {
+			out = append(out, v.text)
+		}
+		for _, item := range v.list {
+			walk(item)
+		}
+		for _, item := range v.object {
+			walk(item)
+		}
+	}
+	walk(root)
+	return out, nil
+}

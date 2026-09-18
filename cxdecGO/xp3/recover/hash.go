@@ -87,3 +87,7 @@ func sipRound(v0, v1, v2, v3 *uint64) {
 	*v1 ^= *v2
 	*v2 = bits.RotateLeft64(*v2, 32)
 }
+
+func FileHashHex(name string) string { return fileHash(name, DefaultDomain) }
+
+func PathHashHex(path string) string { return pathHash(path, DefaultDomain) }

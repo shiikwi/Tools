@@ -117,14 +117,17 @@ func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string,
 
 	if restore {
 		fmt.Println("==========restore name phase==========")
-		names, err = namerecover.Build(archiveDir, names)
+		names, err = namerecover.Build(outputRoot, names)
 		if err != nil {
 			return err
 		}
 		if err := namerecover.SaveList(namesPath, names); err != nil {
 			return err
 		}
-		fmt.Printf("restoreFiles restore %d files\n", restoreNames(outputRoot, archiveDir, manifest.Records, names))
+		restored := restoreNames(outputRoot, archiveDir, manifest.Records, names)
+		dirs := namerecover.RestoreDirs(outputRoot, names)
+		fmt.Printf("restoreFiles restore %d files, %d dirs\n", restored, dirs)
+		printRestoreStats(outputRoot)
 	}
 
 	data, err := json.MarshalIndent(manifest, "", "  ")
@@ -329,4 +332,43 @@ func openFlagCandidates(descriptor *hxv4.Descriptor, record *hxv4.Record) []uint
 		values = append(values, value)
 	}
 	return values
+}
+
+func printRestoreStats(outputRoot string) {
+	entries, err := os.ReadDir(outputRoot)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		arc := filepath.Join(outputRoot, e.Name())
+		total, hexleft := 0, 0
+		filepath.WalkDir(arc, func(p string, entry os.DirEntry, err error) error {
+			if err != nil || entry.IsDir() {
+				return nil
+			}
+			total++
+			name := entry.Name()
+			if len(name) == 64 {
+				hex := true
+				for i := 0; i < 64; i++ {
+					c := name[i]
+					if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+						hex = false
+						break
+					}
+				}
+				if hex {
+					hexleft++
+				}
+			}
+			return nil
+		})
+		if total > 0 {
+			fmt.Printf("restoreFiles %-10s named %d/%d (%.1f%%), %d hash-named left\n",
+				e.Name(), total-hexleft, total, float64(total-hexleft)*100/float64(total), hexleft)
+		}
+	}
 }
