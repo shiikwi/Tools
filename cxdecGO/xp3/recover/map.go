@@ -9,20 +9,6 @@ import (
 	"strings"
 )
 
-type Finder func(root string, domain string) (map[string]string, error)
-
-var finders = []struct {
-	name string
-	fn   Finder
-}{
-	{"defaultNames", defaultNames},
-	{"scanSceneList", scanSceneList},
-	{"scanTJS", scanTJS},
-	{"scanResourceTables", scanResourceTables},
-	{"scanTLGRefs", scanTLGRefs},
-	{"scanPSB", scanPSB},
-}
-
 type targetSet struct {
 	files map[string]bool
 	dirs  map[string]bool
@@ -85,21 +71,16 @@ func Build(root string, base map[string]string) (map[string]string, error) {
 	var firstErr error
 	for round := 1; round <= 5; round++ {
 		before := matchedTargets(ts, out)
-		for _, finder := range finders {
-			names, err := finder.fn(root, DefaultDomain)
-			if err != nil && firstErr == nil {
-				firstErr = err
-			}
+		if names, err := defaultNames(root, DefaultDomain); err == nil {
 			for hash, name := range names {
 				if _, ok := out[hash]; !ok {
 					out[hash] = name
 				}
 			}
-			fmt.Printf("%s get %d file names\n", finder.name, fileNameCount(out))
 		}
 		res := mineShape(out, root, DefaultDomain, ts)
 		fmt.Printf("mineShape match %d names\n", matchedTargets(ts, out))
-		resolveDomains(out, root, DefaultDomain, ts, res.paths)
+		resolveDomains(out, root, DefaultDomain, ts, res.paths, res.stems, round >= 2)
 		fmt.Printf("resolveDomains match %d names\n", matchedTargets(ts, out))
 		derivePBD(out, root, DefaultDomain, ts)
 		fmt.Printf("derivePBD match %d names\n", matchedTargets(ts, out))
@@ -111,6 +92,7 @@ func Build(root string, base map[string]string) (map[string]string, error) {
 		}
 		sweepGrammar(verified, out, DefaultDomain, ts)
 		grammarSeedStems(res.stems, out, DefaultDomain, ts)
+		interpolateNeighbors(root, out, DefaultDomain, ts)
 		now := matchedTargets(ts, out)
 		fmt.Printf("round %d: %d/%d names matched\n", round, now, total)
 		if now == before {
@@ -227,11 +209,27 @@ func LoadList(path string) (map[string]string, error) {
 		if line == "" {
 			continue
 		}
-		hash, name, ok := strings.Cut(line, ":")
-		if !ok || hash == "" || name == "" {
+		fields := strings.Split(line, ":")
+		name := fields[len(fields)-1]
+		if name == "" {
 			continue
 		}
-		out[strings.ToLower(hash)] = name
+		if len(fields) >= 4 {
+			if h := strings.ToLower(fields[1]); h != "" {
+				out[h] = name
+			}
+			if strings.Contains(name, "/") {
+				if h := strings.ToLower(fields[0]); h != "" {
+					out[h] = name[:strings.LastIndex(name, "/")+1]
+				}
+			}
+			continue
+		}
+		hash := strings.ToLower(fields[0])
+		if hash == "" {
+			continue
+		}
+		out[hash] = name
 	}
 	return out, scanner.Err()
 }

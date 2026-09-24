@@ -5,17 +5,15 @@ import (
 	"unicode"
 )
 
-func scanResourceTables(root string, domain string) (map[string]string, error) {
-	return scanFiles(root, domain, 2<<20, addNameHint, func(data []byte) []string {
-		text, ok := decodeScriptText(data)
-		if !ok {
-			text, ok = decodeText(data)
-		}
-		if !ok {
-			return nil
-		}
-		return resourceTableHints(text)
-	})
+func tableFileHints(data []byte) []string {
+	text, ok := decodeScriptText(data)
+	if !ok {
+		text, ok = decodeText(data)
+	}
+	if !ok {
+		return nil
+	}
+	return resourceTableHints(text)
 }
 
 func resourceTableHints(text string) []string {

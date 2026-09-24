@@ -5,55 +5,35 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"io"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
-
-	"cxdecgo/internal/tjs2"
 )
 
-func scanTJS(root string, domain string) (map[string]string, error) {
-	return scanFiles(root, domain, 0, addNameHint, func(data []byte) []string {
-		if bytes.HasPrefix(data, []byte("TJS2100\x00")) {
-			values, err := tjs2.Strings(data)
-			if err != nil {
-				return nil
-			}
-			return filterKnownExtNames(values)
-		}
-		text, ok := decodeScriptText(data)
-		if !ok {
-			return nil
-		}
-		out := quotedKnownExtNames(text)
-		for _, name := range scriptAttributeHints(text) {
-			out = appendUnique(out, name)
-		}
-		return out
-	})
+func tjsTextHints(text string) []string {
+	out := quotedKnownExtNames(text)
+	for _, name := range scriptAttributeHints(text) {
+		out = appendUnique(out, name)
+	}
+	return out
 }
 
-func scanSceneList(root string, domain string) (map[string]string, error) {
-	return scanFiles(root, domain, 1<<20, addNameHint, func(data []byte) []string {
-		text, ok := decodeScriptText(data)
-		if !ok {
-			text, ok = decodeText(data)
+func sceneFileHints(data []byte) []string {
+	text, ok := decodeScriptText(data)
+	if !ok {
+		text, ok = decodeText(data)
+	}
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0)
+	for _, name := range sceneListNames(text) {
+		for _, candidate := range sceneCandidates(name) {
+			out = append(out, candidate)
 		}
-		if !ok {
-			return nil
-		}
-		out := make([]string, 0)
-		for _, name := range sceneListNames(text) {
-			for _, candidate := range sceneCandidates(name) {
-				out = append(out, candidate)
-			}
-		}
-		return out
-	})
+	}
+	return out
 }
 
 func decodeText(data []byte) (string, bool) {
@@ -131,20 +111,6 @@ func descrambleScript(data []byte) ([]byte, bool) {
 	default:
 		return nil, false
 	}
-}
-
-func filterKnownExtNames(values []string) []string {
-	out := make([]string, 0)
-	seen := map[string]bool{}
-	for _, value := range values {
-		name, isDir, ok := cleanName(value)
-		if !ok || isDir || !hasKnownExt(name) || seen[name] {
-			continue
-		}
-		seen[name] = true
-		out = append(out, name)
-	}
-	return out
 }
 
 func hasKnownExt(name string) bool {
@@ -338,7 +304,7 @@ func sceneListNames(text string) []string {
 			name = name[i+1:]
 		}
 		lower := strings.ToLower(name)
-		if !strings.HasSuffix(lower, ".txt") && !strings.HasSuffix(lower, ".scn") {
+		if !strings.HasSuffix(lower, ".txt") && !strings.HasSuffix(lower, ".scn") && !strings.HasSuffix(lower, ".ks") {
 			continue
 		}
 		if name == "" || name == "-" || seen[name] {
@@ -355,13 +321,21 @@ func sceneCandidates(name string) []string {
 	if name == "" {
 		return nil
 	}
-	candidates := make([]string, 0, 3)
+	candidates := make([]string, 0, 4)
+	if strings.HasSuffix(name, ".ks") {
+		candidates = appendSceneCandidate(candidates, name)
+		return appendSceneCandidate(candidates, name+".scn")
+	}
 	if strings.HasSuffix(name, ".scn") {
 		return appendSceneCandidate(candidates, name)
 	}
 	candidates = appendSceneCandidate(candidates, name+".scn")
+	candidates = appendSceneCandidate(candidates, name+".ks")
+	candidates = appendSceneCandidate(candidates, name+".ks.scn")
 	if stem, ok := strings.CutSuffix(name, ".txt"); ok {
 		candidates = appendSceneCandidate(candidates, stem+".scn")
+		candidates = appendSceneCandidate(candidates, stem+".ks")
+		candidates = appendSceneCandidate(candidates, stem+".ks.scn")
 	}
 	return candidates
 }
@@ -382,66 +356,4 @@ func appendUnique(out []string, value string) []string {
 		}
 	}
 	return append(out, value)
-}
-
-func scanFiles(root, domain string, maxSize int64, add func(map[string]string, string, string), hints func([]byte) []string) (map[string]string, error) {
-	files, err := listFiles(root)
-	if err != nil {
-		return nil, err
-	}
-	if len(files) == 0 {
-		return map[string]string{}, nil
-	}
-
-	workers := runtime.NumCPU()
-	if workers > len(files) {
-		workers = len(files)
-	}
-	jobs := make(chan string)
-	results := make(chan map[string]string, workers)
-	for i := 0; i < workers; i++ {
-		go func() {
-			local := map[string]string{}
-			for path := range jobs {
-				info, err := os.Stat(path)
-				if err != nil || info.IsDir() || maxSize > 0 && info.Size() > maxSize {
-					continue
-				}
-				data, err := os.ReadFile(path)
-				if err != nil {
-					continue
-				}
-				for _, value := range hints(data) {
-					add(local, domain, value)
-				}
-			}
-			results <- local
-		}()
-	}
-	for _, path := range files {
-		jobs <- path
-	}
-	close(jobs)
-
-	out := map[string]string{}
-	for i := 0; i < workers; i++ {
-		for hash, name := range <-results {
-			if _, ok := out[hash]; !ok {
-				out[hash] = name
-			}
-		}
-	}
-	return out, nil
-}
-
-func listFiles(root string) ([]string, error) {
-	files := make([]string, 0)
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return nil
-		}
-		files = append(files, path)
-		return nil
-	})
-	return files, err
 }

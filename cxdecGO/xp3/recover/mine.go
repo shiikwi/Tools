@@ -87,13 +87,14 @@ func splitShape(text string) []string {
 
 func extractStrings(data []byte) []string {
 	if len(data) >= 8 && bytes.HasPrefix(data, []byte("TJS2100\x00")) {
-		if values, err := tjs2.Strings(data); err == nil {
-			return values
+		values, err := tjs2.Strings(data)
+		if err != nil {
+			return nil
 		}
-		return nil
+		return values
 	}
 	if len(data) >= 3 && bytes.HasPrefix(data, []byte("PSB")) {
-		if values, err := ParsePSBAllStrings(data); err == nil {
+		if values, ok := psbMineStrings(data); ok {
 			return values
 		}
 		return nil
@@ -102,22 +103,44 @@ func extractStrings(data []byte) []string {
 		return nil
 	}
 	if plain, ok := descrambleScript(data); ok {
-		return harvestRuns(plain)
+		text := string(plain)
+		out := harvestRuns(plain)
+		for _, v := range tjsTextHints(text) {
+			out = appendUnique(out, v)
+		}
+		for _, v := range sceneFileHints(plain) {
+			out = appendUnique(out, v)
+		}
+		for _, v := range tableFileHints(plain) {
+			out = appendUnique(out, v)
+		}
+		return out
 	}
 	if len(data) >= 2 && (bytes.HasPrefix(data, []byte{0xff, 0xfe}) || bytes.HasPrefix(data, []byte{0xfe, 0xff})) {
 		return harvestRuns(data)
 	}
 	if utf8.Valid(data) {
+		text := string(data)
 		out := make([]string, 0, 64)
-		for _, m := range utf8Token.FindAllString(string(data), -1) {
+		for _, m := range utf8Token.FindAllString(text, -1) {
 			out = append(out, m)
+		}
+		for _, v := range sceneFileHints(data) {
+			out = appendUnique(out, v)
+		}
+		for _, v := range tableFileHints(data) {
+			out = appendUnique(out, v)
 		}
 		return out
 	}
 	if len(data) > 256<<10 {
 		return nil
 	}
-	return harvestRuns(data)
+	out := harvestRuns(data)
+	for _, v := range tlgRefHints(data) {
+		out = appendUnique(out, v)
+	}
+	return out
 }
 
 func addFileTarget(out map[string]string, domain string, file string, ts *targetSet) {
@@ -192,19 +215,24 @@ type mineResult struct {
 func mineShape(out map[string]string, root string, domain string, ts *targetSet) mineResult {
 	var res mineResult
 	seen := map[string]bool{}
+	const seenCap = 3_000_000
 	filepath.WalkDir(root, func(p string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return nil
 		}
 		info, err := entry.Info()
-		if err != nil || info.Size() > 16<<20 {
+		if err != nil || info.Size() > 64<<20 {
 			return nil
 		}
 		data, err := os.ReadFile(p)
 		if err != nil {
 			return nil
 		}
-		for _, raw := range extractStrings(data) {
+		raws := extractStrings(data)
+		for _, raw := range raws {
+			if len(seen) >= seenCap {
+				break
+			}
 			for _, tok := range append([]string{raw}, splitShape(raw)...) {
 				if len(tok) < 2 || len(tok) > 300 {
 					continue

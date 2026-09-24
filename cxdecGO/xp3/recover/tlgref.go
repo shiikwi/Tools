@@ -9,10 +9,6 @@ import (
 
 var tlgRefHeader = []byte("TLGref\x00")
 
-func scanTLGRefs(root string, domain string) (map[string]string, error) {
-	return scanFiles(root, domain, 1<<20, addNameHint, tlgRefHints)
-}
-
 func tlgRefHints(data []byte) []string {
 	if !bytes.HasPrefix(data, tlgRefHeader) {
 		return nil

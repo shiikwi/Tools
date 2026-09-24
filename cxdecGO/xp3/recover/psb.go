@@ -52,21 +52,23 @@ type psbReader struct {
 	pos  int
 }
 
-func scanPSB(root string, domain string) (map[string]string, error) {
-	return scanFiles(root, domain, 0, addNameHint, func(data []byte) []string {
-		if !bytes.HasPrefix(data, []byte("PSB")) {
-			return nil
-		}
-		root, stringsPool, err := parsePSB(data)
-		if err != nil {
-			return nil
-		}
-		out := psbResourceHints(root)
-		for _, name := range psbStringPoolHints(stringsPool) {
-			out = appendUnique(out, name)
-		}
-		return out
-	})
+func psbMineStrings(data []byte) ([]string, bool) {
+	if !bytes.HasPrefix(data, []byte("PSB")) {
+		return nil, false
+	}
+	root, pool, err := parsePSB(data)
+	if err != nil {
+		return nil, false
+	}
+	out := make([]string, 0, len(pool)+32)
+	out = append(out, pool...)
+	for _, v := range psbResourceHints(root) {
+		out = appendUnique(out, v)
+	}
+	for _, v := range psbStringPoolHints(pool) {
+		out = appendUnique(out, v)
+	}
+	return out, true
 }
 
 func parsePSB(data []byte) (psbValue, []string, error) {

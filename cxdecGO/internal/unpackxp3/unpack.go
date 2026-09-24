@@ -126,7 +126,8 @@ func unpackArchive(program *hxv4.Program, archivePath string, outputRoot string,
 		}
 		restored := restoreNames(outputRoot, archiveDir, manifest.Records, names)
 		dirs := namerecover.RestoreDirs(outputRoot, names)
-		fmt.Printf("restoreFiles restore %d files, %d dirs\n", restored, dirs)
+		dup := removeStaleHexDups(outputRoot, names)
+		fmt.Printf("restoreFiles restore %d files, %d dirs, %d stale dups removed\n", restored, dirs, dup)
 		printRestoreStats(outputRoot)
 	}
 
@@ -371,4 +372,50 @@ func printRestoreStats(outputRoot string) {
 				e.Name(), total-hexleft, total, float64(total-hexleft)*100/float64(total), hexleft)
 		}
 	}
+}
+
+func removeStaleHexDups(outputRoot string, names map[string]string) int {
+	named := map[string]bool{}
+	var hexfiles []string
+	filepath.WalkDir(outputRoot, func(p string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return nil
+		}
+		name := entry.Name()
+		if len(name) == 64 && isHexName(name) {
+			hexfiles = append(hexfiles, p)
+		} else {
+			named[strings.ToLower(name)] = true
+		}
+		return nil
+	})
+	removed := 0
+	for _, p := range hexfiles {
+		h := strings.ToLower(filepath.Base(p))
+		name, ok := names[h]
+		if !ok {
+			continue
+		}
+		base := name
+		if i := strings.LastIndexByte(base, '/'); i >= 0 {
+			base = base[i+1:]
+		}
+		if !named[strings.ToLower(base)] {
+			continue
+		}
+		if os.Remove(p) == nil {
+			removed++
+		}
+	}
+	return removed
+}
+
+func isHexName(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }

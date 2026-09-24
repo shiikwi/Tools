@@ -228,6 +228,16 @@ func grammarEnumerate(segs []grammarSeg, ranges [][2]int, ext string, out map[st
 	rec(0, 0, nil)
 }
 
+func lower(s string) string {
+	b := []byte(s)
+	for i := range b {
+		if b[i] >= 'A' && b[i] <= 'Z' {
+			b[i] += 32
+		}
+	}
+	return string(b)
+}
+
 func isDigitRun(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] < '0' || s[i] > '9' {
