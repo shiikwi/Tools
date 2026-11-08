@@ -2,6 +2,8 @@ package recover
 
 import (
 	"bytes"
+	"compress/zlib"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -86,6 +88,22 @@ func splitShape(text string) []string {
 }
 
 func extractStrings(data []byte) []string {
+	if len(data) >= 8 && bytes.HasPrefix(data, []byte("mdf\x00")) {
+		reader, err := zlib.NewReader(bytes.NewReader(data[8:]))
+		if err != nil {
+			return nil
+		}
+		inflated, err := io.ReadAll(reader)
+		reader.Close()
+		if err != nil {
+			return nil
+		}
+		out := extractStrings(inflated)
+		for _, match := range utf8Token.FindAll(inflated, -1) {
+			out = appendUnique(out, string(match))
+		}
+		return out
+	}
 	if len(data) >= 8 && bytes.HasPrefix(data, []byte("TJS2100\x00")) {
 		values, err := tjs2.Strings(data)
 		if err != nil {
@@ -186,6 +204,7 @@ func addNameHintT(out map[string]string, domain string, raw string, ts *targetSe
 	}
 	if hasExt(file) {
 		addFileTarget(out, domain, file, ts)
+		addFileTarget(out, domain, file+".scn", ts)
 		return
 	}
 	if strings.Contains(name, "/") {
