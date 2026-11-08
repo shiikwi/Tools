@@ -17,27 +17,27 @@ import (
 )
 
 const (
-	opAddImm             = 0x17C50
-	opRecurse            = 0x17C60
-	opAddScratch         = 0x17CB0
-	opMulScratch         = 0x17CD0
-	opScratchMinusResult = 0x17CF0
-	opShlScratch         = 0x17D10
-	opShrScratch         = 0x17D30
-	opSubScratch         = 0x17D50
-	opBitShuffle         = 0x17D70
-	opSetImm             = 0x17DA0
-	opSetSeed            = 0x17DB0
-	opDec                = 0x17DD0
-	opInc                = 0x17DE0
-	opNeg                = 0x17DF0
-	opNot                = 0x17E00
-	opTableImm           = 0x17E10
-	opTableMasked        = 0x17E30
-	opSubImm             = 0x17E50
-	opStoreScratch       = 0x17E60
-	opXorImm             = 0x17E80
-	opStop               = 0x51D90
+	opAddImm = iota + 1
+	opRecurse
+	opAddScratch
+	opMulScratch
+	opScratchMinusResult
+	opShlScratch
+	opShrScratch
+	opSubScratch
+	opBitShuffle
+	opSetImm
+	opSetSeed
+	opDec
+	opInc
+	opNeg
+	opNot
+	opTableImm
+	opTableMasked
+	opSubImm
+	opStoreScratch
+	opXorImm
+	opStop
 )
 
 type Program struct {
@@ -51,7 +51,7 @@ type Program struct {
 
 type laneRecord struct {
 	Param uint32
-	Op    uint32
+	Op    int
 }
 
 type Descriptor struct {
@@ -125,7 +125,7 @@ func LoadProgram(jsonPath string) (*Program, error) {
 		for _, pair := range lane.Records {
 			records = append(records, laneRecord{
 				Param: uint32(pair[0]),
-				Op:    uint32(pair[1]),
+				Op:    int(pair[1]),
 			})
 		}
 		program.Lanes[laneIndex] = records
@@ -240,34 +240,37 @@ func (p *Program) evalLane(laneIndex int, seed uint32) uint32 {
 	if laneIndex < 0 || laneIndex >= len(p.Lanes) {
 		panic("bad lane")
 	}
-	result, _, _ := p.evalRecords(p.Lanes[laneIndex], 0, 0, seed, 0)
+	result, _ := p.evalRecords(p.Lanes[laneIndex], 0, 0, seed, new(uint32))
 	return result
 }
 
-func (p *Program) evalRecords(records []laneRecord, pc int, result uint32, seed uint32, scratch uint32) (uint32, int, uint32) {
+func (p *Program) evalRecords(records []laneRecord, pc int, result uint32, seed uint32, scratch *uint32) (uint32, int) {
 	for pc < len(records) {
 		record := records[pc]
 		pc++
 		param := record.Param
 		switch record.Op {
 		case opStop:
-			return result, pc, scratch
+			return result, pc
 		case opRecurse:
-			result, pc, _ = p.evalRecords(records, pc, result, seed, scratch)
+			saved := *scratch
+			nested := result
+			result, pc = p.evalRecords(records, pc, nested, seed, scratch)
+			*scratch = saved
 		case opAddImm:
 			result += param
 		case opAddScratch:
-			result += scratch
+			result += *scratch
 		case opMulScratch:
-			result *= scratch
+			result *= *scratch
 		case opScratchMinusResult:
-			result = scratch - result
+			result = *scratch - result
 		case opShlScratch:
-			result <<= scratch & 0xf
+			result <<= *scratch & 0xf
 		case opShrScratch:
-			result >>= scratch & 0xf
+			result >>= *scratch & 0xf
 		case opSubScratch:
-			result -= scratch
+			result -= *scratch
 		case opBitShuffle:
 			result = 2*(result&^param) | ((param >> 1) & (result >> 1))
 		case opSetImm:
@@ -289,14 +292,14 @@ func (p *Program) evalRecords(records []laneRecord, pc int, result uint32, seed 
 		case opSubImm:
 			result -= param
 		case opStoreScratch:
-			scratch = result
+			*scratch = result
 		case opXorImm:
 			result ^= param
 		default:
 			panic("bad drip")
 		}
 	}
-	return result, pc, scratch
+	return result, pc
 }
 
 func (p *Program) contextValue(index int) uint32 {
@@ -397,6 +400,23 @@ func xorBoundaryByte(data []byte, chunkStart uint64, position uint16, value byte
 		return
 	}
 	data[pos-begin] ^= value
+}
+
+func FindDescriptor(index []byte) (Descriptor, bool, error) {
+	return findDescriptor(index)
+}
+
+func CheckIndexPayload(payload []byte, key, nonce []byte) bool {
+	aead, err := chacha20poly1305.NewX(key)
+	if err != nil {
+		return false
+	}
+	if len(payload) < 16 {
+		return false
+	}
+	sealed := append(append([]byte{}, payload[16:]...), payload[:16]...)
+	_, err = aead.Open(nil, nonce, sealed, nil)
+	return err == nil
 }
 
 func findDescriptor(index []byte) (Descriptor, bool, error) {

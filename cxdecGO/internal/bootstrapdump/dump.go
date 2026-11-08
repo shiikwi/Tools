@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -17,7 +16,6 @@ import (
 )
 
 const (
-	tableRVA            = 0x80e38
 	bootstrapZlibOffset = 8
 )
 
@@ -112,15 +110,23 @@ func Run(exePath string) (*Result, error) {
 		return nil, err
 	}
 
-	config, err := parseConfigTable(dllBytes, tableRVA)
+	workDir := filepath.Join(filepath.Dir(absExe), "bootstrap_dump")
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "bootstrap.dll"), dllBytes, 0644); err != nil {
+		return nil, err
+	}
+
+	params, err := findConfigEntry(dllBytes, "PARAMS")
 	if err != nil {
 		return nil, err
 	}
-	uniqueRaw, err := requireConfig(config, "UNIQUE")
+	uniqueRaw, err := findConfigEntry(dllBytes, "UNIQUE")
 	if err != nil {
 		return nil, err
 	}
-	warningRaw, err := requireConfig(config, "WARNING")
+	warningRaw, err := findConfigEntry(dllBytes, "WARNING")
 	if err != nil {
 		return nil, err
 	}
@@ -136,10 +142,6 @@ func Run(exePath string) (*Result, error) {
 		finalBootstrap = prefix + warning
 	}
 
-	workDir := filepath.Join(filepath.Dir(absExe), "bootstrap_dump")
-	if err := os.MkdirAll(workDir, 0755); err != nil {
-		return nil, err
-	}
 	outputs := Outputs{
 		WorkDir:         workDir,
 		BresSalt:        filepath.Join(workDir, "bres_salt.bin"),
@@ -171,7 +173,7 @@ func Run(exePath string) (*Result, error) {
 		return nil, err
 	}
 
-	if err := genHxv4(filepath.Join(workDir, "bootstrap.json")); err != nil {
+	if err := writeHxv4(workDir, dllBytes, params, unique, warning, prefix, filepath.Dir(absExe)); err != nil {
 		return nil, err
 	}
 
@@ -306,31 +308,4 @@ func writeSummary(path string, result *Result) error {
 	}
 	data = append(data, '\n')
 	return os.WriteFile(path, data, 0644)
-}
-
-func genHxv4(path string) error {
-	fmt.Println("==========gen Hxv4 phase==========")
-	exePath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("resolve executable path failed: %w", err)
-	}
-	workDir := filepath.Dir(exePath)
-	derivePath := filepath.Join(workDir, "derive.cs")
-	cmd := exec.Command("dotnet",
-		"run",
-		"--file", derivePath,
-		"-a", "x86",
-		"--",
-		path,
-	)
-	cmd.Dir = workDir
-	outstr, err := cmd.CombinedOutput()
-	if len(outstr) != 0 {
-		fmt.Print(string(outstr))
-	}
-	if err != nil {
-		return fmt.Errorf("dotnet run failed: %w, %s\n", err, outstr)
-	}
-
-	return nil
 }

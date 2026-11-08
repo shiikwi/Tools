@@ -1,45 +1,41 @@
 package bootstrapdump
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"strings"
 	"unicode/utf16"
-
-	"cxdecgo/internal/pefile"
 )
 
-func parseConfigTable(dll []byte, tableRVA uint32) (map[string][]byte, error) {
-	img, err := pefile.New("bootstrap.dll", dll)
-	if err != nil {
-		return nil, err
-	}
-	off, err := img.RVAToOffset(tableRVA)
-	if err != nil {
-		return nil, err
-	}
+const configMaxValueLen = 0x4000
 
-	result := map[string][]byte{}
-	cursor := off
-	for cursor < uint32(len(dll)) {
-		end := cursor
-		for end < uint32(len(dll)) && dll[end] != 0 {
-			end++
-		}
-
-		label := string(dll[cursor:end])
-		cursor = end + 1
-		if label == "" {
+func findConfigEntry(dll []byte, label string) ([]byte, error) {
+	pattern := append([]byte(label), 0)
+	var found []byte
+	start := 0
+	for {
+		i := bytes.Index(dll[start:], pattern)
+		if i < 0 {
 			break
 		}
-
-		length := uint32(binary.LittleEndian.Uint16(dll[cursor:]))
-		cursor += 2
-
-		result[label] = append([]byte(nil), dll[cursor:cursor+length]...)
-		cursor += length
+		off := start + i
+		start = off + 1
+		cur := off + len(pattern)
+		if cur+2 > len(dll) {
+			continue
+		}
+		length := int(binary.LittleEndian.Uint16(dll[cur:]))
+		cur += 2
+		if length == 0 || length > configMaxValueLen || cur+length > len(dll) {
+			continue
+		}
+		found = append([]byte(nil), dll[cur:cur+length]...)
 	}
-	return result, nil
+	if found == nil {
+		return nil, fmt.Errorf("config entry %q not found in bootstrap dll", label)
+	}
+	return found, nil
 }
 
 func requireConfig(config map[string][]byte, label string) ([]byte, error) {
